@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from app.art.education_content import KIDS_EDUCATION_ENGINES, build_lesson_for_engine
 from app.audio.generator import AudioGenerator
 from app.core.project import cleanup_work_dir, make_work_dir, next_output_paths
 from app.core.randomizer import ProjectSpec, Randomizer
@@ -123,30 +124,26 @@ class VideoFactory:
                     }
                 )
 
+            # Kids educational engines: shared lesson for video + audio
+            if spec.engine in KIDS_EDUCATION_ENGINES:
+                lesson = build_lesson_for_engine(
+                    spec.engine,
+                    spec.seed,
+                    spec.duration,
+                    params=spec.params,
+                )
+                if lesson:
+                    spec.params["_duration"] = spec.duration
+                    spec.params["education_lesson"] = lesson
+                    if spec.engine == "alphabet_cartoon":
+                        if spec.params.get("mode") not in {
+                            "chart", "focus", "parade", "lesson", "spell",
+                        }:
+                            spec.params["mode"] = lesson.get("visual_mode", "lesson")
+
             if spec.audio_enabled:
                 if on_progress:
                     on_progress({"phase": "audio", "seed": spec.seed, "engine": spec.engine, "style": spec.style})
-                # Educational alphabet: build shared lesson so video + audio match
-                if spec.engine == "alphabet_cartoon":
-                    from app.art.education_content import build_education_lesson
-
-                    lesson = build_education_lesson(
-                        spec.seed,
-                        spec.duration,
-                        params=spec.params,
-                    )
-                    spec.params["_duration"] = spec.duration
-                    spec.params["education_lesson"] = lesson
-                    # Keep visual mode consistent with lesson
-                    if "mode" not in spec.params or spec.params.get("mode") not in {
-                        "chart",
-                        "focus",
-                        "parade",
-                        "lesson",
-                        "spell",
-                    }:
-                        spec.params["mode"] = lesson.get("visual_mode", "lesson")
-
                 audio_file = self.audio.generate(
                     audio_path,
                     duration=spec.duration,

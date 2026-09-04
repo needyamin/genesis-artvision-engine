@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from app.art.base import ArtEngine, register_engine
 from app.art.education_content import build_education_lesson
+from app.art.word_images import ensure_word_image, paste_word_image
 
 
 def _load_font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
@@ -205,6 +206,12 @@ class AlphabetCartoonEngine(ArtEngine):
 
         # Expose lesson for audio pipeline (copied into params by renderer caller if needed)
         self.params["education_lesson"] = self.lesson
+        self.show_word_images = bool(self.params.get("show_word_images", True))
+        # Ensure offline illustrations exist for this lesson's words (no internet)
+        if self.show_word_images:
+            for seg in self.segments:
+                ensure_word_image(str(seg.get("word", "FUN")))
+                ensure_word_image(str(seg.get("motif", seg.get("word", "STAR"))))
 
     def _segment_at(self, t: float) -> dict:
         for seg in self.segments:
@@ -296,14 +303,16 @@ class AlphabetCartoonEngine(ArtEngine):
         seg = self._segment_at(t)
 
         if self.mode == "parade":
-            self._draw_parade(draw, t, anim)
+            self._draw_parade(draw, img, t, anim)
         elif self.mode in {"focus", "lesson"}:
             self._draw_lesson(draw, img, t, anim, seg)
             draw = ImageDraw.Draw(img)
         elif self.mode == "spell":
-            self._draw_spell(draw, t, anim, seg)
+            self._draw_spell(draw, img, t, anim, seg)
+            draw = ImageDraw.Draw(img)
         else:
-            self._draw_chart(draw, t, anim, seg)
+            self._draw_chart(draw, img, t, anim, seg)
+            draw = ImageDraw.Draw(img)
 
         # Title + educational captions
         self._draw_hud(draw, t, seg)
@@ -348,7 +357,7 @@ class AlphabetCartoonEngine(ArtEngine):
         cell_h = (self.height * 0.72) / (self.rows + 0.5)
         return 0.3 * cell_w + (col + 0.5) * cell_w, self.height * 0.14 + (row + 0.45) * cell_h
 
-    def _draw_chart(self, draw: ImageDraw.ImageDraw, t: float, anim: float, seg: dict) -> None:
+    def _draw_chart(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float, seg: dict) -> None:
         assert self.palette is not None
         n = len(self.letters)
         active = int(seg.get("index", 0))
@@ -376,9 +385,9 @@ class AlphabetCartoonEngine(ArtEngine):
                 )
 
         # Bottom learning strip for highlighted letter
-        self._learning_strip(draw, seg)
+        self._learning_strip(draw, img, seg)
 
-    def _learning_strip(self, draw: ImageDraw.ImageDraw, seg: dict) -> None:
+    def _learning_strip(self, draw: ImageDraw.ImageDraw, img: Image.Image, seg: dict) -> None:
         assert self.palette is not None
         y0 = int(self.height * 0.78)
         draw.rounded_rectangle(
@@ -393,11 +402,19 @@ class AlphabetCartoonEngine(ArtEngine):
         draw.text((int(self.width * 0.12), y0 + 70), str(seg.get("phonics", "")), font=self.font_sm, fill=(60, 80, 110), anchor="lm")
         draw.text((int(self.width * 0.12), y0 + 100), str(seg.get("fact", "")), font=self.font_sm, fill=(80, 100, 70), anchor="lm")
         tip = str(seg.get("tip", ""))
-        draw.text((int(self.width * 0.88), y0 + 70), tip, font=self.font_sm, fill=(120, 70, 40), anchor="rm")
-        if self.show_motifs:
+        draw.text((int(self.width * 0.62), y0 + 100), tip, font=self.font_sm, fill=(120, 70, 40), anchor="lm")
+        word = str(seg.get("word", seg.get("motif", "STAR")))
+        if self.show_word_images:
+            paste_word_image(
+                img,
+                word,
+                (int(self.width * 0.86), y0 + int((self.height * 0.97 - y0) / 2)),
+                max(72, int(min(self.width, self.height) * 0.12)),
+            )
+        elif self.show_motifs:
             _draw_motif(
                 draw,
-                str(seg.get("motif", seg.get("word", "STAR"))),
+                str(seg.get("motif", word)),
                 int(self.width * 0.82),
                 y0 + 55,
                 max(18, int(min(self.width, self.height) * 0.055)),
@@ -440,10 +457,20 @@ class AlphabetCartoonEngine(ArtEngine):
             )
 
         draw.text((x, int(self.height * 0.55)), f"{letter} is for {word}", font=self.font_md, fill=(40, 55, 80), anchor="mm")
-        draw.text((x, int(self.height * 0.62)), str(seg.get("phonics", "")), font=self.font_sm, fill=(70, 90, 120), anchor="mm")
-        draw.text((x, int(self.height * 0.68)), str(seg.get("fact", "")), font=self.font_sm, fill=(60, 110, 70), anchor="mm")
-        draw.text((x, int(self.height * 0.74)), str(seg.get("tip", "")), font=self.font_sm, fill=(140, 80, 40), anchor="mm")
-        if self.show_motifs:
+        draw.text((x, int(self.height * 0.61)), str(seg.get("phonics", "")), font=self.font_sm, fill=(70, 90, 120), anchor="mm")
+        draw.text((x - int(self.width * 0.18), int(self.height * 0.68)), str(seg.get("fact", "")), font=self.font_sm, fill=(60, 110, 70), anchor="mm")
+        draw.text((x - int(self.width * 0.18), int(self.height * 0.74)), str(seg.get("tip", "")), font=self.font_sm, fill=(140, 80, 40), anchor="mm")
+
+        # Related word image (offline illustrated card)
+        if self.show_word_images:
+            paste_word_image(
+                img,
+                word,
+                (int(self.width * 0.72), int(self.height * 0.78)),
+                max(110, int(min(self.width, self.height) * 0.22 * scale)),
+                bounce=int(6 * np.sin(t * 4)),
+            )
+        elif self.show_motifs:
             _draw_motif(
                 draw,
                 str(seg.get("motif", word)),
@@ -463,7 +490,7 @@ class AlphabetCartoonEngine(ArtEngine):
             fill = color if active else (180, 190, 200)
             draw.ellipse((dx - r, int(self.height * 0.95) - r, dx + r, int(self.height * 0.95) + r), fill=fill)
 
-    def _draw_parade(self, draw: ImageDraw.ImageDraw, t: float, anim: float) -> None:
+    def _draw_parade(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float) -> None:
         assert self.palette is not None
         n = len(self.letters)
         gy = int(self.height * 0.70)
@@ -475,9 +502,9 @@ class AlphabetCartoonEngine(ArtEngine):
             y = int(self.height * 0.45 - bounce)
             color = self.palette.as_uint8(float((self.hues[i % len(self.hues)] + t) % 1.0))
             _draw_bubble_letter(draw, letter, (x, y), self.font, color, outline_w=self.outline_w)
-        self._learning_strip(draw, self._segment_at(t))
+        self._learning_strip(draw, img, self._segment_at(t))
 
-    def _draw_spell(self, draw: ImageDraw.ImageDraw, t: float, anim: float, seg: dict) -> None:
+    def _draw_spell(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float, seg: dict) -> None:
         assert self.palette is not None
         word = self.spell_word or "".join(self.letters)
         n = len(self.letters)
@@ -494,7 +521,14 @@ class AlphabetCartoonEngine(ArtEngine):
         draw.text((self.width // 2, int(self.height * 0.55)), f"Spell: {word}", font=self.font_md, fill=(50, 70, 100), anchor="mm")
         draw.text((self.width // 2, int(self.height * 0.62)), str(seg.get("phonics", "")), font=self.font_sm, fill=(70, 90, 120), anchor="mm")
         draw.text((self.width // 2, int(self.height * 0.68)), str(seg.get("fact", "")), font=self.font_sm, fill=(60, 110, 70), anchor="mm")
-        if self.show_motifs:
+        if self.show_word_images:
+            paste_word_image(
+                img,
+                word,
+                (self.width // 2, int(self.height * 0.84)),
+                max(100, int(min(self.width, self.height) * 0.18)),
+            )
+        elif self.show_motifs:
             _draw_motif(
                 draw,
                 str(seg.get("motif", word)),

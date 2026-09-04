@@ -196,6 +196,7 @@ ENGINE_PARAM_SPECS: dict[str, dict[str, Any]] = {
         "background": ["notebook", "sky", "classroom", "pastel"],
         "sparkle": (0.3, 1.0),
         "pop_in": [True, True, False],
+        "show_word_images": [True, True, True],
     },
     "hand_art": {
         "doodle_count": (8, 22),
@@ -203,10 +204,16 @@ ENGINE_PARAM_SPECS: dict[str, dict[str, Any]] = {
         "sketchiness": (0.3, 1.0),
         "paper_grain": (0.15, 0.55),
         "margin_scribbles": [True, True, False],
+        "lesson_theme": ["draw_along", "sketch_practice", "doodle_story"],
+        "show_captions": [True, True, True],
+        "show_word_images": [True, True, True],
     },
     "kids_doodles": {
         "shape_count": (10, 28),
         "board_mode": ["colorful", "colorful", "chalkboard"],
+        "lesson_theme": ["shape_fun", "color_rainbow", "count_along", "word_stickers", "creative_play"],
+        "show_captions": [True, True, True],
+        "show_word_images": [True, True, True],
     },
 }
 

@@ -46,8 +46,8 @@ ENGINE_LABELS: dict[str, str] = {
     "neon_lines": "Neon Lines",
     "particle_trails": "Particle Trails",
     "alphabet_cartoon": "ABC Educational (Kids Learning)",
-    "hand_art": "Hand-Drawn Doodles",
-    "kids_doodles": "Kids Doodle Board",
+    "hand_art": "Draw Along (Hand Art Lessons)",
+    "kids_doodles": "Shapes & Colors (Kids Learning)",
 }
 
 STYLE_LABELS: dict[str, str] = {

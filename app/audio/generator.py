@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from app.art.education_content import KIDS_EDUCATION_ENGINES, build_lesson_for_engine
 from app.audio.kids_education import generate_kids_education_audio
 from app.audio.procedural_music import generate_procedural_audio, write_wav
 from app.utils.logger import get_logger
@@ -38,11 +39,12 @@ class AudioGenerator:
         """
         try:
             params = params or {}
-            if engine == "alphabet_cartoon" or params.get("education_lesson"):
+            if engine in KIDS_EDUCATION_ENGINES or params.get("education_lesson"):
                 lesson = params.get("education_lesson")
                 if not isinstance(lesson, dict):
+                    lesson = build_lesson_for_engine(engine or "", seed, duration, params=params)
+                if not isinstance(lesson, dict):
                     from app.art.education_content import build_education_lesson
-
                     lesson = build_education_lesson(seed, duration, params=params)
                 samples = generate_kids_education_audio(
                     duration,

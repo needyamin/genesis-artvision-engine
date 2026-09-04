@@ -1,4 +1,4 @@
-"""Educational kids soundtrack synced to alphabet lesson segments."""
+"""Educational kids soundtrack synced to lesson segments with offline narration."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from app.audio.procedural_music import _adsr, _midi_to_hz, _osc, _soft_reverb
+from app.audio.procedural_voice import mix_speech_at, synthesize_speech
 
 
 def _letter_midi(letter: str) -> float:
@@ -26,14 +27,15 @@ def generate_kids_education_audio(
     lesson: dict[str, Any],
     *,
     sample_rate: int = 44100,
+    voice_enabled: bool = True,
 ) -> np.ndarray:
     """
     Build a kids learning soundtrack aligned with lesson segments.
 
     - Soft happy pad bed
-    - Letter chime at each segment start
-    - Short melody flourish for the word
-    - Light rhythmic clap/tick for engagement
+    - Letter/chime at each segment start
+    - Short melody flourish for words
+    - Offline procedural voice narration per segment
     """
     rng = np.random.default_rng(seed + 91)
     n = max(1, int(duration * sample_rate))
@@ -46,9 +48,10 @@ def generate_kids_education_audio(
         lfo = 0.55 + 0.45 * np.sin(2 * np.pi * (0.05 + amp) * t)
         audio += wave * lfo * amp
 
+    engine = str(lesson.get("engine", "alphabet_cartoon"))
     segments = list(lesson.get("segments") or [])
     if not segments:
-        segments = [{"t0": 0.0, "t1": 1.0, "letter": "A", "word": "APPLE"}]
+        segments = [{"t0": 0.0, "t1": 1.0, "letter": "A", "word": "APPLE", "voice_line": "A is for apple"}]
 
     tempo = float(rng.uniform(88, 112))
     beat = 60.0 / tempo
@@ -56,14 +59,21 @@ def generate_kids_education_audio(
     for seg in segments:
         t0 = float(seg.get("t0", 0.0)) * duration
         t1 = float(seg.get("t1", 1.0)) * duration
-        letter = str(seg.get("letter", "A"))
+        letter = str(seg.get("letter", seg.get("color_name", "A"))[:1] or "A")
         word = str(seg.get("word", "FUN"))
+        shape = str(seg.get("shape", ""))
         start = int(t0 * sample_rate)
         if start >= n:
             continue
 
-        # Letter chime (two-note "name" ping)
-        root = _letter_midi(letter)
+        # Segment chime — letter, color name, or shape cue
+        if engine == "kids_doodles" and seg.get("color_name"):
+            root = _letter_midi(str(seg["color_name"])[0])
+        elif engine == "hand_art":
+            root = _letter_midi(word[0] if word else "A")
+        else:
+            root = _letter_midi(letter)
+
         for j, (midi, length, amp) in enumerate(
             ((root, 0.28, 0.22), (root + 7, 0.22, 0.16), (root + 12, 0.18, 0.12))
         ):
@@ -76,28 +86,43 @@ def generate_kids_education_audio(
             env = _adsr(s1 - s0, sample_rate, a=0.01, d=0.08, s=0.45, r=0.15)
             audio[s0:s1] += tone * env * amp
 
-        # Word flourish — short ascending notes for each letter of word (max 6)
-        for k, ch in enumerate(word[:6]):
+        # Word / shape flourish
+        flourish = word if word else shape.upper()
+        for k, ch in enumerate(flourish[:6]):
             midi = _letter_midi(ch if ch.isalpha() else letter)
             nn = max(1, int(0.14 * sample_rate))
-            s0 = start + int((0.45 + k * 0.12) * sample_rate)
+            s0 = start + int((0.55 + k * 0.1) * sample_rate)
             s1 = min(n, s0 + nn)
             if s0 >= n:
                 break
             tone = _osc(_midi_to_hz(midi + 12), s1 - s0, sample_rate, "sine", rng)
             env = _adsr(s1 - s0, sample_rate, a=0.005, d=0.05, s=0.35, r=0.08)
-            audio[s0:s1] += tone * env * 0.11
+            audio[s0:s1] += tone * env * 0.1
+
+        # Offline voice narration
+        if voice_enabled:
+            voice_text = str(seg.get("voice_line") or seg.get("line") or "")
+            if voice_text:
+                speech = synthesize_speech(
+                    voice_text,
+                    sample_rate=sample_rate,
+                    pitch=1.15 if engine != "hand_art" else 1.08,
+                    speed=0.9,
+                    seed=seed + int(seg.get("index", 0)) * 131,
+                )
+                voice_start = start + int(0.18 * sample_rate)
+                mix_speech_at(audio, speech, voice_start, bed_gain=0.32, speech_gain=0.92)
 
         # Soft learning ticks during segment
         seg_len = max(0.2, t1 - t0)
-        tick_t = t0 + 0.5
+        tick_t = t0 + 0.65
         while tick_t < t1 - 0.15:
             s0 = int(tick_t * sample_rate)
             nn = max(1, int(0.04 * sample_rate))
             s1 = min(n, s0 + nn)
             click = rng.random(s1 - s0).astype(np.float32) * 2 - 1
             env = np.linspace(1.0, 0.0, s1 - s0, dtype=np.float32)
-            audio[s0:s1] += click * env * 0.03
+            audio[s0:s1] += click * env * 0.025
             tick_t += beat
 
     # End celebration arpeggio

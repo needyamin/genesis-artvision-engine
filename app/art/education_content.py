@@ -131,6 +131,107 @@ THEMES = [
     "count_fun",
 ]
 
+KIDS_EDUCATION_ENGINES = frozenset({"alphabet_cartoon", "kids_doodles", "hand_art"})
+
+DOODLE_THEMES = [
+    "shape_fun",
+    "color_rainbow",
+    "count_along",
+    "word_stickers",
+    "creative_play",
+]
+
+HAND_ART_THEMES = [
+    "draw_along",
+    "sketch_practice",
+    "doodle_story",
+]
+
+SHAPES = ["circle", "square", "triangle", "star", "heart", "blob"]
+
+SHAPE_WORDS: dict[str, str] = {
+    "circle": "BALL",
+    "square": "BOX",
+    "triangle": "TREE",
+    "star": "STAR",
+    "heart": "SUN",
+    "blob": "CLOUD",
+}
+
+SHAPE_LINES: dict[str, list[str]] = {
+    "circle": ["This is a circle!", "A circle is round!", "Can you trace a circle?"],
+    "square": ["This is a square!", "Squares have four sides!", "Look at the corners!"],
+    "triangle": ["This is a triangle!", "Triangles have three points!", "Point up to the sky!"],
+    "star": ["This is a star!", "Stars can twinkle!", "Count the star points!"],
+    "heart": ["This is a heart!", "Hearts mean love!", "Draw a heart for someone!"],
+    "blob": ["This is a silly blob!", "Blobs are wiggly!", "Make a funny shape!"],
+}
+
+SHAPE_FACTS: dict[str, list[str]] = {
+    "circle": ["Circles have no corners.", "Wheels are circles!", "Bubbles are circles too!"],
+    "square": ["All sides are the same length.", "Windows can be square.", "Blocks are often square."],
+    "triangle": ["A pizza slice is a triangle.", "Roofs can be triangles.", "Three sides make a triangle."],
+    "star": ["Stars shine in the sky.", "You can wish on a star!", "Stars have pointy tips."],
+    "heart": ["We draw hearts for friends.", "Hearts beat in your chest.", "Pink hearts are pretty!"],
+    "blob": ["Blobs can be any shape!", "Clouds look like blobs.", "Squish and stretch blobs!"],
+}
+
+COLORS: list[tuple[str, str, tuple[int, int, int]]] = [
+    ("red", "RED", (235, 70, 70)),
+    ("blue", "BLUE", (70, 120, 235)),
+    ("green", "GREEN", (70, 190, 90)),
+    ("yellow", "YELLOW", (245, 220, 60)),
+    ("orange", "ORANGE", (245, 150, 55)),
+    ("purple", "PURPLE", (160, 90, 210)),
+    ("pink", "PINK", (245, 130, 180)),
+]
+
+COLOR_LINES = [
+    "This color is {name}!",
+    "Can you find {name}?",
+    "Say {name} with me!",
+    "Look at the {name} shape!",
+]
+
+COLOR_FACTS: dict[str, list[str]] = {
+    "red": ["Apples can be red.", "Stop signs are red.", "Red is a warm color."],
+    "blue": ["The sky can be blue.", "Blue is a cool color.", "Water looks blue sometimes."],
+    "green": ["Grass is green.", "Leaves are green.", "Green means go!"],
+    "yellow": ["The sun looks yellow.", "Bananas can be yellow.", "Yellow is bright!"],
+    "orange": ["Oranges are orange!", "Carrots can be orange.", "Orange is cheerful!"],
+    "purple": ["Grapes can be purple.", "Purple mixes red and blue.", "Purple is royal!"],
+    "pink": ["Some flowers are pink.", "Pink is soft and sweet.", "Flamingos can be pink!"],
+}
+
+DRAW_SUBJECTS = [
+    ("house", "HOUSE", "Let's draw a house!", "A house keeps us warm."),
+    ("flower", "FLOWER", "Let's draw a flower!", "Flowers need sunshine."),
+    ("sun", "SUN", "Let's draw the sun!", "The sun gives us light."),
+    ("star", "STAR", "Let's draw a star!", "Stars twinkle at night."),
+    ("fish", "FISH", "Let's draw a fish!", "Fish swim in water."),
+    ("cloud", "CLOUD", "Let's draw a cloud!", "Clouds float in the sky."),
+    ("heart", "SUN", "Let's draw a heart!", "Hearts mean kindness."),
+    ("stick", "BIRD", "Let's draw a person!", "People can wave hello."),
+    ("spiral", "STAR", "Let's draw a spiral!", "Spirals go round and round."),
+    ("tree", "TREE", "Let's draw a tree!", "Trees give us oxygen."),
+]
+
+DRAW_TIPS = [
+    "Follow the lines slowly.",
+    "Use your whole arm to draw.",
+    "It's okay to wobble!",
+    "Try it again — practice helps!",
+    "Add your own details!",
+]
+
+DOODLE_TIPS = [
+    "Trace the shape with your finger!",
+    "Can you find this at home?",
+    "Clap once for each shape!",
+    "Say the word out loud!",
+    "You're doing great!",
+]
+
 
 def pick_word(rng: np.random.Generator, letter: str) -> str:
     letter = letter.upper()
@@ -253,6 +354,7 @@ def build_education_lesson(
                 "phonics": phonics,
                 "tip": tip,
                 "line": f"{letter} is for {word}",
+                "voice_line": f"{letter} is for {word}. {phonics}",
             }
         )
 
@@ -262,9 +364,251 @@ def build_education_lesson(
         "theme": theme,
         "title": title,
         "visual_mode": visual_mode,
+        "engine": "alphabet_cartoon",
         "letters": letters,
         "spell_word": spell_word,
         "segments": segments,
         "duration": float(duration),
         "closing": str(rng.choice(["You did great!", "Learning is fun!", "See you next time!", "Keep practicing!"])),
     }
+
+
+def _segment_edges(n: int) -> np.ndarray:
+    return np.linspace(0.0, 1.0, max(2, n + 1))
+
+
+def build_kids_doodle_lesson(
+    seed: int,
+    duration: float,
+    *,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a shape/color/count lesson for the kids doodle board engine."""
+    params = params or {}
+    rng = np.random.default_rng(seed + 17)
+    theme = str(params.get("lesson_theme", rng.choice(DOODLE_THEMES)))
+
+    title_map = {
+        "shape_fun": "Shape Time!",
+        "color_rainbow": "Color Rainbow",
+        "count_along": "Count With Me",
+        "word_stickers": "Word Stickers",
+        "creative_play": "Creative Play",
+    }
+    title = title_map.get(theme, "Doodle & Learn")
+
+    segments: list[dict[str, Any]] = []
+    if theme == "shape_fun":
+        picks = list(rng.choice(SHAPES, size=int(rng.integers(5, 8)), replace=False))
+        for i, shape in enumerate(picks):
+            word = SHAPE_WORDS.get(shape, "STAR")
+            line = str(rng.choice(SHAPE_LINES.get(shape, ["Let's learn shapes!"])))
+            segments.append(
+                {
+                    "index": i,
+                    "kind": "shape",
+                    "shape": shape,
+                    "word": word,
+                    "motif": word,
+                    "line": line,
+                    "fact": str(rng.choice(SHAPE_FACTS.get(shape, ["Shapes are fun!"]))),
+                    "tip": str(rng.choice(DOODLE_TIPS)),
+                    "voice_line": f"{line} {rng.choice(SHAPE_FACTS.get(shape, ['']))}",
+                }
+            )
+        visual_mode = "focus"
+    elif theme == "color_rainbow":
+        picks = list(rng.choice(len(COLORS), size=int(rng.integers(5, 7)), replace=False))
+        for i, idx in enumerate(picks):
+            key, name, rgb = COLORS[int(idx)]
+            shape = str(rng.choice(SHAPES[:5]))
+            word = SHAPE_WORDS.get(shape, "STAR")
+            line = str(rng.choice(COLOR_LINES).format(name=name))
+            segments.append(
+                {
+                    "index": i,
+                    "kind": "color",
+                    "shape": shape,
+                    "color_key": key,
+                    "color_name": name,
+                    "color_rgb": list(rgb),
+                    "word": word,
+                    "motif": word,
+                    "line": line,
+                    "fact": str(rng.choice(COLOR_FACTS.get(key, ["Colors are beautiful!"]))),
+                    "tip": "Point to the color!",
+                    "voice_line": f"{line} {COLOR_FACTS.get(key, [''])[0]}",
+                }
+            )
+        visual_mode = "color"
+    elif theme == "count_along":
+        count = int(rng.integers(3, 7))
+        for i in range(count):
+            n = i + 1
+            shape = str(rng.choice(SHAPES[:5]))
+            word = pick_word(rng, str(rng.choice(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))))
+            line = f"Count {n}! Can you see {n} shapes?"
+            segments.append(
+                {
+                    "index": i,
+                    "kind": "count",
+                    "shape": shape,
+                    "count": n,
+                    "word": word,
+                    "motif": motif_key(word),
+                    "line": line,
+                    "fact": f"{n} is a number we can count.",
+                    "tip": "Count with your fingers!",
+                    "voice_line": f"Count {n} with me!",
+                }
+            )
+        visual_mode = "count"
+    elif theme == "word_stickers":
+        letters = list(rng.choice(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), size=int(rng.integers(6, 9)), replace=False))
+        for i, letter in enumerate(letters):
+            word = pick_word(rng, letter)
+            shape = str(rng.choice(SHAPES[:5]))
+            line = f"{letter} — {word}!"
+            segments.append(
+                {
+                    "index": i,
+                    "kind": "word",
+                    "letter": letter,
+                    "shape": shape,
+                    "word": word,
+                    "motif": motif_key(word),
+                    "line": line,
+                    "phonics": PHONICS.get(letter, f"Learn {letter}!"),
+                    "fact": pick_fact(rng, letter),
+                    "tip": str(rng.choice(DOODLE_TIPS)),
+                    "voice_line": f"{letter} is for {word}",
+                }
+            )
+        visual_mode = "stickers"
+    else:
+        picks = list(rng.choice(SHAPES, size=int(rng.integers(6, 10)), replace=False))
+        for i, shape in enumerate(picks):
+            word = SHAPE_WORDS.get(shape, "STAR")
+            segments.append(
+                {
+                    "index": i,
+                    "kind": "play",
+                    "shape": shape,
+                    "word": word,
+                    "motif": word,
+                    "line": str(rng.choice(SHAPE_LINES.get(shape, ["Let's doodle!"]))),
+                    "fact": str(rng.choice(SHAPE_FACTS.get(shape, ["Have fun drawing!"]))),
+                    "tip": str(rng.choice(DOODLE_TIPS)),
+                    "voice_line": f"Let's doodle a {shape}!",
+                }
+            )
+        visual_mode = "playground"
+
+    n = max(1, len(segments))
+    edges = _segment_edges(n)
+    for i, seg in enumerate(segments):
+        seg["t0"] = float(edges[i])
+        seg["t1"] = float(edges[i + 1])
+
+    return {
+        "theme": theme,
+        "title": title,
+        "visual_mode": visual_mode,
+        "engine": "kids_doodles",
+        "segments": segments,
+        "duration": float(duration),
+        "closing": str(rng.choice(["Great doodling!", "You are an artist!", "Keep creating!", "Amazing job!"])),
+    }
+
+
+def build_hand_art_lesson(
+    seed: int,
+    duration: float,
+    *,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a step-by-step draw-along lesson for the hand art engine."""
+    params = params or {}
+    rng = np.random.default_rng(seed + 31)
+    theme = str(params.get("lesson_theme", rng.choice(HAND_ART_THEMES)))
+
+    title_map = {
+        "draw_along": "Draw Along With Me",
+        "sketch_practice": "Sketch Practice",
+        "doodle_story": "Doodle Story Time",
+    }
+    title = title_map.get(theme, "Hand Art Class")
+
+    pool = list(DRAW_SUBJECTS)
+    rng.shuffle(pool)
+
+    if theme == "draw_along":
+        picks = pool[: int(rng.integers(4, 7))]
+        visual_mode = "draw_along"
+    elif theme == "sketch_practice":
+        kind = pool[0][0]
+        picks = [s for s in pool if s[0] == kind][:1]
+        picks = picks * int(rng.integers(4, 6))
+        visual_mode = "practice"
+    else:
+        picks = pool[: int(rng.integers(5, 8))]
+        visual_mode = "story"
+
+    segments: list[dict[str, Any]] = []
+    for i, (kind, word, intro, fact) in enumerate(picks):
+        step_lines = [
+            f"Step one: start your {kind}.",
+            f"Step two: add details to the {kind}.",
+            f"Step three: finish your {kind}!",
+        ]
+        segments.append(
+            {
+                "index": i,
+                "kind": "draw",
+                "doodle_kind": kind,
+                "word": word,
+                "motif": word,
+                "line": intro,
+                "fact": fact,
+                "tip": str(rng.choice(DRAW_TIPS)),
+                "steps": step_lines,
+                "voice_line": f"{intro} {fact}",
+            }
+        )
+
+    n = max(1, len(segments))
+    edges = _segment_edges(n)
+    for i, seg in enumerate(segments):
+        seg["t0"] = float(edges[i])
+        seg["t1"] = float(edges[i + 1])
+
+    story_intro = "Once upon a time, an artist began to draw..."
+    story_outro = "And they drew a wonderful picture!"
+
+    return {
+        "theme": theme,
+        "title": title,
+        "visual_mode": visual_mode,
+        "engine": "hand_art",
+        "segments": segments,
+        "duration": float(duration),
+        "story_intro": story_intro if theme == "doodle_story" else "",
+        "closing": str(rng.choice(["Beautiful drawing!", "You're an artist!", "Practice makes perfect!", "Great sketching!"])),
+    }
+
+
+def build_lesson_for_engine(
+    engine: str,
+    seed: int,
+    duration: float,
+    *,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Unified lesson builder for all kids educational engines."""
+    if engine == "alphabet_cartoon":
+        return build_education_lesson(seed, duration, params=params)
+    if engine == "kids_doodles":
+        return build_kids_doodle_lesson(seed, duration, params=params)
+    if engine == "hand_art":
+        return build_hand_art_lesson(seed, duration, params=params)
+    return None
