@@ -1,0 +1,86 @@
+resolution: "1920x1080"  # Full HD default
+fps: 30
+
+duration:
+  min: 15
+  max: 60
+  default: 30
+  options: [10, 15, 30, 60, 120]
+
+batch:
+  default_count: 1
+
+audio:
+  enabled: true
+  sample_rate: 44100
+
+output:
+  directory: "./output"
+  thumbnail: true
+  bitrate: "8M"          # used for Full HD; 4K uses bitrate_4k
+  bitrate_4k: "35M"
+  audio_bitrate: "192k"
+
+temp:
+  directory: "./temp"
+  keep_on_failure: true
+
+performance:
+  workers: auto
+  preview_scale: 0.25
+  max_preview_fps: 15
+
+logging:
+  level: INFO
+  directory: "./logs"
+
+database:
+  path: "./data/history.db"
+
+engines:
+  - particles
+  - galaxy
+  - fractal
+  - mandelbrot
+  - julia
+  - kaleidoscope
+  - geometric
+  - flow_field
+  - waves
+  - tunnel
+  - voronoi
+  - reaction_diffusion
+  - noise
+  - l_system
+  - neon_lines
+  - particle_trails
+  - alphabet_cartoon
+  - hand_art
+  - kids_doodles
+
+styles:
+  - abstract
+  - cosmic
+  - neon
+  - minimal
+  - psychedelic
+  - geometric
+  - organic
+  - dreamlike
+  - digital
+  - mathematical
+  - futuristic
+  - calm
+  - chaotic
+  - playful
+
+# Primary export targets: Full HD + 4K (and common variants)
+resolutions:
+  - "1920x1080"   # Full HD landscape (default)
+  - "3840x2160"   # 4K UHD landscape
+  - "1080x1920"   # Full HD vertical
+  - "2160x3840"   # 4K vertical
+  - "1080x1080"   # Full HD square
+  - "2160x2160"   # 4K square
+
+fps_options: [24, 30, 60]
