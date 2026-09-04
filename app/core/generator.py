@@ -126,11 +126,34 @@ class VideoFactory:
             if spec.audio_enabled:
                 if on_progress:
                     on_progress({"phase": "audio", "seed": spec.seed, "engine": spec.engine, "style": spec.style})
+                # Educational alphabet: build shared lesson so video + audio match
+                if spec.engine == "alphabet_cartoon":
+                    from app.art.education_content import build_education_lesson
+
+                    lesson = build_education_lesson(
+                        spec.seed,
+                        spec.duration,
+                        params=spec.params,
+                    )
+                    spec.params["_duration"] = spec.duration
+                    spec.params["education_lesson"] = lesson
+                    # Keep visual mode consistent with lesson
+                    if "mode" not in spec.params or spec.params.get("mode") not in {
+                        "chart",
+                        "focus",
+                        "parade",
+                        "lesson",
+                        "spell",
+                    }:
+                        spec.params["mode"] = lesson.get("visual_mode", "lesson")
+
                 audio_file = self.audio.generate(
                     audio_path,
                     duration=spec.duration,
                     seed=spec.seed,
                     style=spec.style,
+                    engine=spec.engine,
+                    params=spec.params,
                 )
                 if audio_file is None:
                     logger.warning("Continuing without audio for seed=%s", spec.seed)

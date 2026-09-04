@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from app.audio.kids_education import generate_kids_education_audio
 from app.audio.procedural_music import generate_procedural_audio, write_wav
 from app.utils.logger import get_logger
-from app.utils.paths import resolve_path, project_root
+from app.utils.paths import project_root
 
 logger = get_logger("audio.generator")
 
@@ -26,43 +27,39 @@ class AudioGenerator:
         duration: float,
         seed: int,
         style: str = "abstract",
+        engine: str | None = None,
+        params: dict[str, Any] | None = None,
     ) -> Path | None:
         """
         Generate a WAV file. Returns path on success, None on failure.
-        Optionally blends a random local asset from assets/music if present.
+
+        For alphabet educational videos, builds a kids learning soundtrack
+        synced to the lesson segments.
         """
         try:
-            samples = generate_procedural_audio(
-                duration,
-                seed,
-                sample_rate=self.sample_rate,
-                style=style,
-            )
-            # Optional local asset overlay (not required)
-            asset = self._pick_local_asset(seed)
-            if asset is not None:
-                try:
-                    import wave
+            params = params or {}
+            if engine == "alphabet_cartoon" or params.get("education_lesson"):
+                lesson = params.get("education_lesson")
+                if not isinstance(lesson, dict):
+                    from app.art.education_content import build_education_lesson
 
-                    with wave.open(str(asset), "rb") as wf:
-                        raw = wf.readframes(wf.getnframes())
-                        import numpy as np
-
-                        asset_audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
-                        # Mono mix
-                        if wf.getnchannels() > 1:
-                            asset_audio = asset_audio.reshape(-1, wf.getnchannels()).mean(axis=1)
-                        target_n = len(samples)
-                        if len(asset_audio) < target_n:
-                            reps = int(np.ceil(target_n / max(1, len(asset_audio))))
-                            asset_audio = np.tile(asset_audio, reps)[:target_n]
-                        else:
-                            asset_audio = asset_audio[:target_n]
-                        samples = samples * 0.75 + asset_audio * 0.2
-                        peak = float(np.max(np.abs(samples)) + 1e-9)
-                        samples = samples / peak * 0.85
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Local asset mix skipped: %s", exc)
+                    lesson = build_education_lesson(seed, duration, params=params)
+                samples = generate_kids_education_audio(
+                    duration,
+                    seed,
+                    lesson,
+                    sample_rate=self.sample_rate,
+                )
+            else:
+                samples = generate_procedural_audio(
+                    duration,
+                    seed,
+                    sample_rate=self.sample_rate,
+                    style=style,
+                )
+                asset = self._pick_local_asset(seed)
+                if asset is not None:
+                    samples = self._mix_asset(samples, asset)
 
             write_wav(output_path, samples, self.sample_rate)
             logger.info("Wrote audio: %s", output_path)
@@ -70,6 +67,30 @@ class AudioGenerator:
         except Exception as exc:  # noqa: BLE001
             logger.exception("Audio generation failed: %s", exc)
             return None
+
+    def _mix_asset(self, samples, asset: Path):
+        try:
+            import wave
+
+            import numpy as np
+
+            with wave.open(str(asset), "rb") as wf:
+                raw = wf.readframes(wf.getnframes())
+                asset_audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+                if wf.getnchannels() > 1:
+                    asset_audio = asset_audio.reshape(-1, wf.getnchannels()).mean(axis=1)
+                target_n = len(samples)
+                if len(asset_audio) < target_n:
+                    reps = int(np.ceil(target_n / max(1, len(asset_audio))))
+                    asset_audio = np.tile(asset_audio, reps)[:target_n]
+                else:
+                    asset_audio = asset_audio[:target_n]
+                mixed = samples * 0.75 + asset_audio * 0.2
+                peak = float(np.max(np.abs(mixed)) + 1e-9)
+                return mixed / peak * 0.85
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Local asset mix skipped: %s", exc)
+            return samples
 
     def _pick_local_asset(self, seed: int) -> Path | None:
         music_dir = project_root() / "assets" / "music"

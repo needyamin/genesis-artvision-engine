@@ -45,7 +45,7 @@ ENGINE_LABELS: dict[str, str] = {
     "l_system": "L-System Plants",
     "neon_lines": "Neon Lines",
     "particle_trails": "Particle Trails",
-    "alphabet_cartoon": "ABC School Alphabet (Cartoon)",
+    "alphabet_cartoon": "ABC Educational (Kids Learning)",
     "hand_art": "Hand-Drawn Doodles",
     "kids_doodles": "Kids Doodle Board",
 }

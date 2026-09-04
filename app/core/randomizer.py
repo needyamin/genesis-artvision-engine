@@ -178,6 +178,14 @@ ENGINE_PARAM_SPECS: dict[str, dict[str, Any]] = {
     },
     "alphabet_cartoon": {
         "mode": ["chart", "focus", "parade", "lesson", "spell"],
+        "lesson_theme": [
+            "letter_of_day",
+            "abc_chart",
+            "word_builder",
+            "phonics",
+            "animal_friends",
+            "count_fun",
+        ],
         "columns": (5, 8),
         "bounce": (0.4, 1.0),
         "wobble": (0.2, 0.9),
