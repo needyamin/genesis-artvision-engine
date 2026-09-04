@@ -230,7 +230,60 @@ DOODLE_TIPS = [
     "Clap once for each shape!",
     "Say the word out loud!",
     "You're doing great!",
+    "Point and say the name!",
+    "Can you draw it too?",
 ]
+
+ENGAGE_HOOKS = [
+    "Are you ready?",
+    "Let's go!",
+    "Here we go!",
+    "Watch this!",
+    "Your turn next!",
+    "Can you do it?",
+    "Let's try together!",
+]
+
+CELEBRATION_LINES = [
+    "Amazing!",
+    "You got it!",
+    "Super star!",
+    "High five!",
+    "Wow, great job!",
+    "Fantastic learning!",
+    "You're so smart!",
+]
+
+QUIZ_PROMPTS = [
+    "What do you see?",
+    "Can you name it?",
+    "Do you remember?",
+    "What letter is this?",
+    "Say it with me!",
+    "Point to it!",
+]
+
+INTERACTIVE_CHALLENGES = [
+    "Clap your hands!",
+    "Jump once!",
+    "Touch your nose!",
+    "Spin around!",
+    "Make a happy face!",
+    "Wave hello!",
+]
+
+NUMBER_FACTS = {
+    1: "One sun in the sky!",
+    2: "Two eyes to see!",
+    3: "Three wheels on a tricycle!",
+    4: "Four legs on a dog!",
+    5: "Five fingers on one hand!",
+    6: "Six sides on a honeycomb!",
+    7: "Seven colors in a rainbow!",
+    8: "Eight legs on a spider!",
+    9: "Nine planets... well, almost!",
+    10: "Ten toes on your feet!",
+}
 
 
 def pick_word(rng: np.random.Generator, letter: str) -> str:
@@ -319,8 +372,7 @@ def build_education_lesson(
         visual_mode = str(rng.choice(["lesson", "parade", "focus"]))
 
     n = max(1, len(letters))
-    # Time segments covering the full duration
-    edges = np.linspace(0.0, 1.0, n + 1)
+    edges = _segment_edges(n)
 
     segments: list[dict[str, Any]] = []
     for i, letter in enumerate(letters):
@@ -358,6 +410,14 @@ def build_education_lesson(
             }
         )
 
+    for seg in segments:
+        _enrich_segment(seg, rng)
+        # Richer narration with engagement
+        hook = seg.get("engage", "")
+        seg["voice_line"] = f"{hook} {seg['voice_line']}"
+        if seg.get("quiz"):
+            seg["voice_line"] += f" {seg['quiz']}"
+
     spell_word = "".join(letters) if visual_mode == "spell" else ""
 
     return {
@@ -370,11 +430,24 @@ def build_education_lesson(
         "segments": segments,
         "duration": float(duration),
         "closing": str(rng.choice(["You did great!", "Learning is fun!", "See you next time!", "Keep practicing!"])),
+        "engage_intro": str(rng.choice(ENGAGE_HOOKS)),
     }
 
 
 def _segment_edges(n: int) -> np.ndarray:
-    return np.linspace(0.0, 1.0, max(2, n + 1))
+    from app.art.education_anim import weighted_segment_edges
+    return weighted_segment_edges(n)
+
+
+def _enrich_segment(seg: dict, rng: np.random.Generator) -> dict:
+    """Add engagement hooks kids respond to."""
+    seg["engage"] = str(rng.choice(ENGAGE_HOOKS))
+    seg["celebrate"] = str(rng.choice(CELEBRATION_LINES))
+    if rng.random() < 0.45:
+        seg["quiz"] = str(rng.choice(QUIZ_PROMPTS))
+    if rng.random() < 0.35:
+        seg["challenge"] = str(rng.choice(INTERACTIVE_CHALLENGES))
+    return seg
 
 
 def build_kids_doodle_lesson(
@@ -448,6 +521,7 @@ def build_kids_doodle_lesson(
             shape = str(rng.choice(SHAPES[:5]))
             word = pick_word(rng, str(rng.choice(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))))
             line = f"Count {n}! Can you see {n} shapes?"
+            num_fact = NUMBER_FACTS.get(n, f"{n} is a number we can count.")
             segments.append(
                 {
                     "index": i,
@@ -457,9 +531,9 @@ def build_kids_doodle_lesson(
                     "word": word,
                     "motif": motif_key(word),
                     "line": line,
-                    "fact": f"{n} is a number we can count.",
+                    "fact": num_fact,
                     "tip": "Count with your fingers!",
-                    "voice_line": f"Count {n} with me!",
+                    "voice_line": f"Count {n} with me! {num_fact}",
                 }
             )
         visual_mode = "count"
@@ -509,6 +583,9 @@ def build_kids_doodle_lesson(
     for i, seg in enumerate(segments):
         seg["t0"] = float(edges[i])
         seg["t1"] = float(edges[i + 1])
+        _enrich_segment(seg, rng)
+        if "voice_line" in seg:
+            seg["voice_line"] = f"{seg.get('engage', '')} {seg['voice_line']}".strip()
 
     return {
         "theme": theme,
@@ -518,6 +595,7 @@ def build_kids_doodle_lesson(
         "segments": segments,
         "duration": float(duration),
         "closing": str(rng.choice(["Great doodling!", "You are an artist!", "Keep creating!", "Amazing job!"])),
+        "engage_intro": str(rng.choice(ENGAGE_HOOKS)),
     }
 
 
@@ -581,9 +659,11 @@ def build_hand_art_lesson(
     for i, seg in enumerate(segments):
         seg["t0"] = float(edges[i])
         seg["t1"] = float(edges[i + 1])
+        _enrich_segment(seg, rng)
+        if "voice_line" in seg:
+            seg["voice_line"] = f"{seg.get('engage', '')} {seg['voice_line']}".strip()
 
     story_intro = "Once upon a time, an artist began to draw..."
-    story_outro = "And they drew a wonderful picture!"
 
     return {
         "theme": theme,
@@ -594,6 +674,7 @@ def build_hand_art_lesson(
         "duration": float(duration),
         "story_intro": story_intro if theme == "doodle_story" else "",
         "closing": str(rng.choice(["Beautiful drawing!", "You're an artist!", "Practice makes perfect!", "Great sketching!"])),
+        "engage_intro": str(rng.choice(ENGAGE_HOOKS)),
     }
 
 

@@ -9,6 +9,14 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from app.art.base import ArtEngine, register_engine
+from app.art.education_anim import (
+    draw_confetti,
+    draw_glow_ring,
+    draw_prompt_bubble,
+    draw_segment_counter,
+    segment_local,
+    smooth_pop,
+)
 from app.art.education_content import build_education_lesson
 from app.art.word_images import ensure_word_image, paste_word_image
 
@@ -172,6 +180,8 @@ class AlphabetCartoonEngine(ArtEngine):
         self.letters = list(self.lesson["letters"])
         self.spell_word = str(self.lesson.get("spell_word") or "")
         self.segments = list(self.lesson["segments"])
+        for seg in self.segments:
+            seg["_total"] = len(self.segments)
         self.lesson_title = str(self.lesson.get("title") or "Let's Learn!")
         self.closing = str(self.lesson.get("closing") or "Great job!")
 
@@ -203,6 +213,7 @@ class AlphabetCartoonEngine(ArtEngine):
         self.sparks_y = self.rng.random(sp).astype(np.float32)
         self.sparks_r = self.rng.uniform(1.5, 4.5, sp).astype(np.float32)
         self.sparks_ph = self.rng.random(sp).astype(np.float32)
+        self.confetti_seeds = self.rng.random(40).astype(np.float32)
 
         # Expose lesson for audio pipeline (copied into params by renderer caller if needed)
         self.params["education_lesson"] = self.lesson
@@ -233,12 +244,7 @@ class AlphabetCartoonEngine(ArtEngine):
     def _pop_scale(self, local_t: float) -> float:
         if not self.pop_in:
             return 1.0
-        local_t = float(np.clip(local_t, 0.0, 1.0))
-        if local_t <= 0:
-            return 0.05
-        if local_t < 0.7:
-            return float(np.sin(local_t / 0.7 * np.pi * 0.5) * 1.12)
-        return 1.0
+        return smooth_pop(local_t, elastic=True)
 
     def _make_background(self, t: float) -> Image.Image:
         assert self.palette is not None
@@ -318,8 +324,8 @@ class AlphabetCartoonEngine(ArtEngine):
         self._draw_hud(draw, t, seg)
 
         arr = np.array(img, dtype=np.uint8, copy=True)
-        blur = cv2.GaussianBlur(arr, (0, 0), sigmaX=2.0)
-        return cv2.addWeighted(arr, 0.84, blur, 0.16, 0)
+        blur = cv2.GaussianBlur(arr, (0, 0), sigmaX=1.2)
+        return cv2.addWeighted(arr, 0.90, blur, 0.10, 0)
 
     def _draw_hud(self, draw: ImageDraw.ImageDraw, t: float, seg: dict) -> None:
         title = self.lesson_title
@@ -332,8 +338,18 @@ class AlphabetCartoonEngine(ArtEngine):
             width=3,
         )
         draw.text((self.width // 2, banner_y + 14), title, font=self.font_sm, fill=(40, 60, 90), anchor="mm")
+        draw_segment_counter(draw, int(seg.get("index", 0)), len(self.segments), self.width, self.height, self.font_sm)
 
-        # Closing message near end
+        local = segment_local(t, seg)
+        if local > 0.78 and seg.get("celebrate"):
+            draw_prompt_bubble(
+                draw, str(seg["celebrate"]),
+                self.width // 2, int(self.height * 0.66),
+                self.font_sm, (local - 0.78) / 0.22,
+                fill=(255, 245, 200), accent=(255, 160, 50),
+            )
+            draw_confetti(draw, self.width, self.height, t, self.confetti_seeds, intensity=(local - 0.78) / 0.22)
+
         if t > 0.92:
             draw.rounded_rectangle(
                 (self.width // 2 - 200, int(self.height * 0.88), self.width // 2 + 200, int(self.height * 0.96)),
@@ -349,6 +365,7 @@ class AlphabetCartoonEngine(ArtEngine):
                 fill=(50, 90, 50),
                 anchor="mm",
             )
+            draw_confetti(draw, self.width, self.height, t, self.confetti_seeds, intensity=1.0)
 
     def _cell_center(self, i: int) -> tuple[float, float]:
         row = i // self.cols
@@ -426,11 +443,11 @@ class AlphabetCartoonEngine(ArtEngine):
         assert self.palette is not None
         letter = str(seg.get("letter", "A"))
         word = str(seg.get("word", "FUN"))
-        local = (t - float(seg["t0"])) / max(1e-6, float(seg["t1"]) - float(seg["t0"]))
-        scale = self._pop_scale(float(np.clip(local * 2.2, 0, 1)))
+        local = segment_local(t, seg)
+        scale = self._pop_scale(min(1.0, local * 2.2))
         color = self.palette.as_uint8((hash(letter) % 100) / 100.0 + t * 0.2)
         x, y = self.width // 2, int(self.height * 0.34)
-        bounce = int(np.sin(t * anim * np.pi * 5) * 16 * scale)
+        bounce = int(np.sin(t * anim * np.pi * 4) * 14 * scale)
 
         overlay = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
         od = ImageDraw.Draw(overlay)
@@ -444,7 +461,9 @@ class AlphabetCartoonEngine(ArtEngine):
         )
         composed = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
         img.paste(composed)
-        draw = ImageDraw.Draw(img)
+        draw = ImageDraw.Draw(img, "RGBA")
+        draw_glow_ring(draw, x, y + bounce, int(self.font_size * 0.9 * scale), color, t)
+        draw = ImageDraw.Draw(img.convert("RGB"))
 
         _draw_bubble_letter(draw, letter, (x, y + bounce), self.font_lg, color, outline_w=max(8, self.outline_w + 4))
         if self.show_lowercase and letter.isalpha():
@@ -481,14 +500,18 @@ class AlphabetCartoonEngine(ArtEngine):
                 t,
             )
 
-        # Progress dots
+        # Progress dots with pulse
         dots = len(self.segments)
         for i in range(dots):
             dx = int(self.width * 0.15 + i * (self.width * 0.7) / max(1, dots - 1))
             active = i == int(seg.get("index", 0))
-            r = 6 if active else 3
+            pulse = 1.0 + 0.3 * np.sin(t * np.pi * 8) if active else 1.0
+            r = int((7 if active else 3) * pulse)
             fill = color if active else (180, 190, 200)
             draw.ellipse((dx - r, int(self.height * 0.95) - r, dx + r, int(self.height * 0.95) + r), fill=fill)
+
+        if local > 0.55 and seg.get("quiz"):
+            draw_prompt_bubble(draw, str(seg["quiz"]), x, int(self.height * 0.48), self.font_sm, (local - 0.55) * 2.5)
 
     def _draw_parade(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float) -> None:
         assert self.palette is not None
