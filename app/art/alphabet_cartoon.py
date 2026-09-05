@@ -15,7 +15,14 @@ from app.art.education_anim import (
 )
 from app.art.edit_brain import kids_shot
 from app.art.education_content import build_education_lesson
-from app.art.education_ui import draw_kids_chrome, draw_picture_card, draw_stage_card, paste_picture
+from app.art.education_ui import (
+    draw_kids_chrome,
+    draw_phonics_badge,
+    draw_picture_card,
+    draw_stage_card,
+    draw_ten_frame,
+    paste_picture,
+)
 from app.art.fonts import load_font, paint_text
 from app.art.kids_layout import chart_cell_center, kids_layout
 from app.art.word_images import ensure_word_image
@@ -417,6 +424,23 @@ class AlphabetCartoonEngine(ArtEngine):
         glow_r = int(min(self.layout.stage.w, self.layout.stage.h) * 0.22 * shot.letter_scale)
         draw_glow_ring(draw, x, y + bounce, glow_r, color, t, layers=1)
         _draw_bubble_letter(draw, letter, (x, y + bounce), self.font_lg, color, outline_w=max(6, self.outline_w))
+
+        # Teacher Phonics Distinction Badge (Phoneme + Sound spelling + Rhyme family)
+        if letter.isalpha() and shot.caption_alpha > 0.35:
+            bw = min(220, int(self.layout.stage.w * 0.42))
+            bh = max(40, int(self.layout.stage.h * 0.18))
+            bx = x - bw // 2
+            by = self.layout.stage.y1 - bh - max(8, int(self.layout.stage.h * 0.04))
+            draw_phonics_badge(draw, seg, (bx, by), bw, bh, {"sm": self.font_sm, "md": self.font_md}, alpha=shot.caption_alpha)
+
+        # Teacher Ten-Frame Subitizing for counting / numbers
+        if seg.get("ten_frame") and shot.caption_alpha > 0.35:
+            tf_w = min(190, int(self.layout.stage.w * 0.38))
+            tf_h = max(38, int(tf_w * 0.42))
+            tf_x = self.layout.stage.cx - tf_w // 2
+            tf_y = self.layout.stage.y1 - tf_h - max(8, int(self.layout.stage.h * 0.04))
+            draw_ten_frame(draw, int(seg.get("count", 1)), (tf_x, tf_y), tf_w, tf_h, dot_color=color, alpha=shot.caption_alpha)
+
         self._paste_picture(draw, img, seg, t, shot.picture_scale)
 
     def _draw_parade(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float) -> None:

@@ -85,6 +85,54 @@ PHONICS: dict[str, str] = {
     "Z": "Z says /z/ as in zebra",
 }
 
+# Master Teacher Pedagogy: exact IPA phonemes, sound spelling, and rhyme families
+PHONEME_DATA: dict[str, dict[str, Any]] = {
+    "A": {"phoneme": "/æ/", "sound_name": "short a", "sound_spelling": "ah", "rhyme_family": "-at (cat, hat, bat)", "stroke_count": 3},
+    "B": {"phoneme": "/b/", "sound_name": "voiced stop", "sound_spelling": "buh", "rhyme_family": "-all (ball, fall, tall)", "stroke_count": 2},
+    "C": {"phoneme": "/k/", "sound_name": "hard c", "sound_spelling": "kuh", "rhyme_family": "-at (cat, bat, mat)", "stroke_count": 1},
+    "D": {"phoneme": "/d/", "sound_name": "voiced stop", "sound_spelling": "duh", "rhyme_family": "-og (dog, frog, log)", "stroke_count": 2},
+    "E": {"phoneme": "/ɛ/", "sound_name": "short e", "sound_spelling": "eh", "rhyme_family": "-ed (bed, red, fed)", "stroke_count": 4},
+    "F": {"phoneme": "/f/", "sound_name": "fricative", "sound_spelling": "fff", "rhyme_family": "-ish (fish, wish, dish)", "stroke_count": 3},
+    "G": {"phoneme": "/ɡ/", "sound_name": "hard g", "sound_spelling": "guh", "rhyme_family": "-oat (goat, boat, coat)", "stroke_count": 2},
+    "H": {"phoneme": "/h/", "sound_name": "aspirate", "sound_spelling": "huh", "rhyme_family": "-at (hat, cat, rat)", "stroke_count": 3},
+    "I": {"phoneme": "/ɪ/", "sound_name": "short i", "sound_spelling": "ih", "rhyme_family": "-in (pin, win, fin)", "stroke_count": 3},
+    "J": {"phoneme": "/dʒ/", "sound_name": "affricate", "sound_spelling": "juh", "rhyme_family": "-am (jam, ham, ram)", "stroke_count": 2},
+    "K": {"phoneme": "/k/", "sound_name": "velar stop", "sound_spelling": "kuh", "rhyme_family": "-ite (kite, bite, white)", "stroke_count": 3},
+    "L": {"phoneme": "/l/", "sound_name": "liquid", "sound_spelling": "lll", "rhyme_family": "-ion (lion)", "stroke_count": 2},
+    "M": {"phoneme": "/m/", "sound_name": "nasal", "sound_spelling": "mmm", "rhyme_family": "-oon (moon, spoon, soon)", "stroke_count": 4},
+    "N": {"phoneme": "/n/", "sound_name": "nasal", "sound_spelling": "nnn", "rhyme_family": "-est (nest, best, rest)", "stroke_count": 3},
+    "O": {"phoneme": "/ɒ/", "sound_name": "short o", "sound_spelling": "aw", "rhyme_family": "-ot (hot, pot, dot)", "stroke_count": 1},
+    "P": {"phoneme": "/p/", "sound_name": "unvoiced stop", "sound_spelling": "puh", "rhyme_family": "-ig (pig, dig, big)", "stroke_count": 2},
+    "Q": {"phoneme": "/kw/", "sound_name": "cluster", "sound_spelling": "kwuh", "rhyme_family": "-een (queen, green, seen)", "stroke_count": 2},
+    "R": {"phoneme": "/r/", "sound_name": "liquid", "sound_spelling": "rrr", "rhyme_family": "-ed (red, bed) / -ose (rose)", "stroke_count": 3},
+    "S": {"phoneme": "/s/", "sound_name": "sibilant", "sound_spelling": "sss", "rhyme_family": "-un (sun, run, fun)", "stroke_count": 1},
+    "T": {"phoneme": "/t/", "sound_name": "unvoiced stop", "sound_spelling": "tuh", "rhyme_family": "-ee (tree, bee, see)", "stroke_count": 2},
+    "U": {"phoneme": "/ʌ/", "sound_name": "short u", "sound_spelling": "uh", "rhyme_family": "-up (cup, pup)", "stroke_count": 1},
+    "V": {"phoneme": "/v/", "sound_name": "voiced fricative", "sound_spelling": "vvv", "rhyme_family": "-an (van, pan, can)", "stroke_count": 2},
+    "W": {"phoneme": "/w/", "sound_name": "glide", "sound_spelling": "wuh", "rhyme_family": "-et (wet, pet, net)", "stroke_count": 4},
+    "X": {"phoneme": "/ks/", "sound_name": "cluster", "sound_spelling": "ks", "rhyme_family": "-ox (box, fox)", "stroke_count": 2},
+    "Y": {"phoneme": "/j/", "sound_name": "glide", "sound_spelling": "yuh", "rhyme_family": "-ellow (yellow)", "stroke_count": 3},
+    "Z": {"phoneme": "/z/", "sound_name": "voiced sibilant", "sound_spelling": "zzz", "rhyme_family": "-oo (zoo, too)", "stroke_count": 3},
+}
+
+SHAPE_PEDAGOGY: dict[str, dict[str, Any]] = {
+    "CIRCLE": {"sides": 0, "vertices": 0, "fact": "1 continuous curved line, 0 corners"},
+    "TRIANGLE": {"sides": 3, "vertices": 3, "fact": "3 straight sides and 3 sharp corners"},
+    "SQUARE": {"sides": 4, "vertices": 4, "fact": "4 equal sides and 4 square corners"},
+    "RECTANGLE": {"sides": 4, "vertices": 4, "fact": "4 sides: 2 long and 2 short"},
+    "STAR": {"sides": 10, "vertices": 5, "fact": "5 shining points reaching out"},
+    "HEART": {"sides": 0, "vertices": 1, "fact": "2 round curves meeting at 1 bottom point"},
+}
+
+TEN_FRAME_DATA: dict[int, dict[str, Any]] = {
+    i: {
+        "count": i,
+        "filled": [(idx // 5, idx % 5) for idx in range(i)],
+        "equation": f"{i}" if i <= 5 else f"5 + {i - 5} = {i}",
+    }
+    for i in range(1, 11)
+}
+
 FUN_FACTS: dict[str, list[str]] = {
     "A": ["Ants work as a team!", "Apples can be red or green."],
     "B": ["Birds build nests from twigs.", "Balls can bounce high!"],
@@ -1104,6 +1152,11 @@ def lock_kids_segment(seg: dict[str, Any], *, intro: str = "") -> dict[str, Any]
 
     if kind in {"shape", "color", "play"}:
         shape = str(seg.get("shape") or "")
+        spdata = SHAPE_PEDAGOGY.get(shape.upper(), {})
+        if spdata:
+            seg["shape_sides"] = spdata.get("sides", 0)
+            seg["shape_vertices"] = spdata.get("vertices", 0)
+            seg["shape_fact"] = spdata.get("fact", "")
         voice = str(seg.get("voice_line") or "")
         if shape and shape.lower() not in voice.lower() and kind != "color":
             seg["voice_line"] = f"This is a {shape}. Can you draw a {shape}?"
@@ -1129,12 +1182,25 @@ def lock_kids_segment(seg: dict[str, Any], *, intro: str = "") -> dict[str, Any]
             seg["motif"] = motif_key(word)
         return seg
 
+    # Math or number counting beats: attach ten-frame subitizing data
+    if kind in {"math", "count"} or str(seg.get("count", "")).isdigit():
+        cnt = int(seg.get("count", 0))
+        if 1 <= cnt <= 10:
+            seg["ten_frame"] = TEN_FRAME_DATA.get(cnt)
+
     if letter.isalpha():
         if not word or not word.startswith(letter):
             word = LETTER_WORDS.get(letter, ["FUN"])[0]
         seg["word"] = word
         seg["letter"] = letter
         seg["motif"] = motif_key(word)
+        pdata = PHONEME_DATA.get(letter.upper(), {})
+        if pdata:
+            seg["phoneme"] = pdata.get("phoneme", "")
+            seg["sound_name"] = pdata.get("sound_name", "")
+            seg["sound_spelling"] = pdata.get("sound_spelling", "")
+            seg["rhyme_family"] = pdata.get("rhyme_family", "")
+            seg["stroke_count"] = pdata.get("stroke_count", 1)
         overlay = str(seg.get("overlay_text") or "")
         if not _text_fits_teaching(overlay, letter=letter, word=word):
             overlay = f"{letter} is for {word}"

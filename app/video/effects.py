@@ -26,6 +26,33 @@ def apply_glow(frame: np.ndarray, amount: float) -> np.ndarray:
     return cv2.addWeighted(frame, 1.0, blur, amount * 0.45, 0)
 
 
+def apply_bloom_highlights(frame: np.ndarray, amount: float, threshold: float = 185.0) -> np.ndarray:
+    """Volumetric highlight bloom: extract specular brights, blur with dual radius, add back."""
+    if amount <= 0.04:
+        return frame
+    f = frame.astype(np.float32)
+    bright = np.maximum(0.0, f - threshold)
+    if not np.any(bright > 0.0):
+        return frame
+    b1 = cv2.GaussianBlur(bright, (0, 0), sigmaX=4.0)
+    b2 = cv2.GaussianBlur(bright, (0, 0), sigmaX=14.0)
+    bloom = (b1 * 0.65 + b2 * 0.35) * (amount * 1.6)
+    return np.clip(f + bloom, 0, 255).astype(np.uint8)
+
+
+def apply_chromatic_aberration(frame: np.ndarray, shift: float) -> np.ndarray:
+    """Lens fringe: red channel shifts slightly right, blue channel slightly left."""
+    s = int(round(shift))
+    if s <= 0:
+        return frame
+    h, w = frame.shape[:2]
+    s = min(s, max(1, w // 40))
+    out = frame.copy()
+    out[:, s:, 0] = frame[:, :-s, 0]
+    out[:, :-s, 2] = frame[:, s:, 2]
+    return out
+
+
 def apply_grade(frame: np.ndarray, grade: str) -> np.ndarray:
     """Offline color grade presets."""
     name = (grade or "").strip().lower()
@@ -185,6 +212,16 @@ def apply_editorial_finish(
         cx = float(params.get("focus_x", 0.5))
         cy = float(params.get("focus_y", 0.5))
         out = apply_push_in(out, zoom, cx, cy)
+
+    bloom = float(params.get("bloom") or 0.0)
+    if bloom > 0.04:
+        out = apply_bloom_highlights(out, bloom)
+
+    chroma = float(params.get("chroma") or 0.0)
+    if kids:
+        chroma = 0.0
+    if chroma > 0.3:
+        out = apply_chromatic_aberration(out, chroma)
 
     vignette = float(params.get("vignette") or (0.08 if kids else 0.32))
     if kids:

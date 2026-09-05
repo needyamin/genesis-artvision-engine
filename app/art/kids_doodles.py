@@ -18,7 +18,9 @@ from app.art.education_content import build_kids_doodle_lesson
 from app.art.education_ui import (
     draw_kids_chrome,
     draw_picture_card,
+    draw_shape_properties_badge,
     draw_stage_card,
+    draw_ten_frame,
     load_font,
     paint_text,
     paste_picture,
@@ -210,6 +212,18 @@ class KidsDoodleEngine(ArtEngine):
             color = self.palette.as_uint8((hash(shape) % 100) / 100.0)
         outline = tuple(max(0, c - 45) for c in color)
         self._draw_shape(draw, shape, cx, cy + bounce, size, color, outline, 0.0, trace=trace, glow=True, t=t)
+
+        # Geometry Teacher Properties Badge (Sides & Vertices callout)
+        if seg.get("shape_sides") is not None and shot.caption_alpha > 0.35:
+            bw = min(220, int(self.layout.stage.w * 0.44))
+            bh = max(38, int(self.layout.stage.h * 0.16))
+            bx = cx - bw // 2
+            by = self.layout.stage.y1 - bh - max(8, int(self.layout.stage.h * 0.04))
+            sides = int(seg.get("shape_sides", 0))
+            vertices = int(seg.get("shape_vertices", 0))
+            fact = str(seg.get("shape_fact") or "")
+            draw_shape_properties_badge(draw, sides, vertices, (bx, by), bw, bh, self.font_xs, fact=fact)
+
         if self.show_word_images and (seg.get("image_path") or seg.get("word")) and shot.picture_scale > 0.12:
             paste_picture(img, seg, self.layout, bounce=0 if shot.hold_still else int(kids_breathe(t, 3.0) * scale))
         else:
@@ -270,10 +284,22 @@ class KidsDoodleEngine(ArtEngine):
             paste_picture(img, seg, self.layout)
         else:
             draw_picture_card(draw, self.layout)
-            paint_text(
-                draw, self.layout.picture_xy, str(count),
-                self.font_lg, (50, 70, 100), anchor="mm",
-            )
+            if count <= 10:
+                tf_w = min(170, int(self.layout.picture.w * 0.85))
+                tf_h = max(36, int(tf_w * 0.42))
+                tf_x = self.layout.picture.cx - tf_w // 2
+                tf_y = self.layout.picture.cy - tf_h // 2 + 10
+                paint_text(
+                    draw, (self.layout.picture.cx, tf_y - 18), str(count),
+                    self.font_md, (50, 70, 100), anchor="mm",
+                )
+                dot_c = self.palette.as_uint8(0.2)
+                draw_ten_frame(draw, count, (tf_x, tf_y), tf_w, tf_h, dot_color=dot_c, alpha=1.0)
+            else:
+                paint_text(
+                    draw, self.layout.picture_xy, str(count),
+                    self.font_lg, (50, 70, 100), anchor="mm",
+                )
 
     def _draw_stickers(self, draw: ImageDraw.ImageDraw, img: Image.Image, seg: dict, t: float, anim: float) -> None:
         del anim

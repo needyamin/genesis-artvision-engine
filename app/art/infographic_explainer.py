@@ -170,6 +170,22 @@ class InfographicExplainerEngine(ArtEngine):
 
         self._draw_schematic(draw, schematic_type, schematic_box, t_motion, seg_local)
 
+        # 4b. Telemetry strip and scale bar overlaid on schematic
+        self._draw_telemetry_and_scale(draw, schematic_box, t_motion)
+
+        # 4c. Target reticle on schematic focal point → angled leader → card edge
+        sx0, sy0, sx1, sy1 = schematic_box
+        sch_cx = (sx0 + sx1) // 2
+        sch_cy = (sy0 + sy1) // 2
+        shot = documentary_shot(seg_local)
+        self._draw_target_reticle_and_leader(
+            draw,
+            (sch_cx, sch_cy),
+            card_box,
+            t_motion,
+            alpha=float(shot.entry),
+        )
+
         # 5. Draw Header HUD (Domain tag, Title, Timeline Progress)
         self._draw_header_hud(draw, t_lin, seg_idx, len(segments))
 
@@ -524,6 +540,65 @@ class InfographicExplainerEngine(ArtEngine):
             x_out = cx + int(math.cos(rad) * r_max)
             y_out = cy + int(math.sin(rad) * r_max)
             draw.line((x_in, y_in, x_out, y_out), fill=(*self.c_secondary, 180), width=1)
+
+    def _draw_target_reticle_and_leader(
+        self,
+        draw: ImageDraw.ImageDraw,
+        target_pt: tuple[int, int],
+        card_box: tuple[int, int, int, int],
+        t: float,
+        alpha: float,
+    ) -> None:
+        """BBC/Discovery style targeting reticle with angled HUD leader line to card."""
+        if alpha < 0.25:
+            return
+        tx, ty = target_pt
+        c_x0, c_y0, _, _ = card_box
+
+        # Animated reticle ring
+        pulse_r = int(14 + 4 * math.sin(t * 8.0))
+        reticle_col = (*self.c_accent, int(200 * alpha))
+        draw.ellipse((tx - pulse_r, ty - pulse_r, tx + pulse_r, ty + pulse_r), outline=reticle_col, width=1)
+        draw.ellipse((tx - 3, ty - 3, tx + 3, ty + 3), fill=(*self.c_secondary, int(255 * alpha)))
+
+        # Reticle tick marks
+        for dx, dy in ((-pulse_r - 6, 0), (pulse_r + 6, 0), (0, -pulse_r - 6), (0, pulse_r + 6)):
+            draw.line((tx + dx // 2, ty + dy // 2, tx + dx, ty + dy), fill=reticle_col, width=1)
+
+        # Angled leader line from target to card edge
+        if c_x0 > tx + pulse_r + 20:
+            bend_x = tx + int((c_x0 - tx) * 0.45)
+            bend_y = max(c_y0 + 30, ty - 25)
+            leader_col = (*self.c_accent, int(150 * alpha))
+            draw.line((tx + pulse_r, ty, bend_x, bend_y), fill=leader_col, width=1)
+            draw.line((bend_x, bend_y, c_x0, bend_y), fill=leader_col, width=1)
+            draw.ellipse((bend_x - 2, bend_y - 2, bend_x + 2, bend_y + 2), fill=(*self.c_secondary, int(220 * alpha)))
+
+    def _draw_telemetry_and_scale(
+        self,
+        draw: ImageDraw.ImageDraw,
+        schematic_box: tuple[int, int, int, int],
+        t: float,
+    ) -> None:
+        """Scientific telemetry readout strip and scale bar."""
+        sx0, sy0, sx1, sy1 = schematic_box
+        domain = self.topic.get("domain", "astronomy")
+        f_tele = load_font(max(9, int(self.height * 0.016)), family="modern")
+
+        # Telemetry line at top of schematic box
+        freq_val = 1420.4 + (math.sin(t * 3.0) * 0.8)
+        tele_str = f"SYS_ID: {self.topic.get('id', 'N/A')[:12].upper()}  |  RF: {freq_val:.1f} MHz  |  SCALE: METRIC  |  ST: LOCK"
+        paint_text(draw, (sx0 + 8, sy0 + 10), tele_str, f_tele, (*self.c_accent, 160), anchor="lm", max_width=sx1 - sx0 - 16)
+
+        # Scientific scale bar at bottom of schematic box
+        scale_label = "100,000 KM" if domain == "astronomy" else ("1,000 KM" if domain == "earth_science" else "10 NM")
+        bar_w = min(120, int((sx1 - sx0) * 0.3))
+        bar_x0 = sx0 + 12
+        bar_y = sy1 - 12
+        draw.line((bar_x0, bar_y, bar_x0 + bar_w, bar_y), fill=(*self.c_secondary, 180), width=1)
+        draw.line((bar_x0, bar_y - 4, bar_x0, bar_y + 4), fill=(*self.c_secondary, 180), width=1)
+        draw.line((bar_x0 + bar_w, bar_y - 4, bar_x0 + bar_w, bar_y + 4), fill=(*self.c_secondary, 180), width=1)
+        paint_text(draw, (bar_x0 + bar_w // 2, bar_y - 8), scale_label, f_tele, (*self.c_secondary, 200), anchor="mm")
 
     def _draw_info_cards(
         self,

@@ -184,16 +184,21 @@ class StyleMotion:
     twist: float
     core: float
     turb: float
+    plexus: float = 0.0
+    warp: float = 1.0
+    tilt: float = 0.0
+    caustic: float = 0.5
+    depth_layers: int = 3
 
 
 STYLE_MOTION: dict[str, StyleMotion] = {
-    "abstract": StyleMotion(1.00, 0.12, 1.00, 1.00, 0.28, 1.00, 1.00, 1.00),
-    "cosmic": StyleMotion(0.58, 0.05, 0.70, 1.40, 0.16, 0.65, 1.50, 0.50),
-    "minimal": StyleMotion(0.45, 0.03, 0.32, 0.50, 0.10, 0.40, 0.65, 0.35),
-    "organic": StyleMotion(0.70, 0.07, 1.40, 0.85, 0.40, 0.78, 0.88, 0.90),
-    "digital": StyleMotion(1.22, 0.32, 0.75, 1.15, 0.46, 1.30, 0.80, 0.62),
-    "playful": StyleMotion(0.88, 0.10, 0.55, 0.72, 0.22, 0.70, 0.78, 0.48),
-    "documentary": StyleMotion(0.52, 0.04, 0.48, 0.82, 0.14, 0.50, 1.12, 0.40),
+    "abstract": StyleMotion(1.00, 0.12, 1.00, 1.00, 0.28, 1.00, 1.00, 1.00, plexus=0.35, warp=1.20, tilt=0.25, caustic=0.70, depth_layers=3),
+    "cosmic": StyleMotion(0.58, 0.05, 0.70, 1.40, 0.16, 0.65, 1.50, 0.50, plexus=0.18, warp=0.85, tilt=0.55, caustic=0.45, depth_layers=3),
+    "minimal": StyleMotion(0.45, 0.03, 0.32, 0.50, 0.10, 0.40, 0.65, 0.35, plexus=0.06, warp=0.40, tilt=0.15, caustic=0.20, depth_layers=2),
+    "organic": StyleMotion(0.70, 0.07, 1.40, 0.85, 0.40, 0.78, 0.88, 0.90, plexus=0.22, warp=1.65, tilt=0.30, caustic=0.90, depth_layers=3),
+    "digital": StyleMotion(1.22, 0.32, 0.75, 1.15, 0.46, 1.30, 0.80, 0.62, plexus=0.85, warp=0.60, tilt=0.40, caustic=0.80, depth_layers=3),
+    "playful": StyleMotion(0.88, 0.10, 0.55, 0.72, 0.22, 0.70, 0.78, 0.48, plexus=0.10, warp=0.50, tilt=0.10, caustic=0.50, depth_layers=2),
+    "documentary": StyleMotion(0.52, 0.04, 0.48, 0.82, 0.14, 0.50, 1.12, 0.40, plexus=0.42, warp=0.50, tilt=0.35, caustic=0.30, depth_layers=3),
 }
 
 

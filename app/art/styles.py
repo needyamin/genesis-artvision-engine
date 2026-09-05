@@ -91,6 +91,8 @@ STYLE_EDIT: dict[str, dict[str, Any]] = {
         "camera_push": (0.040, 0.070),
         "micro_contrast": 0.16,
         "bpm": (88.0, 108.0),
+        "chroma": (0.8, 1.8),
+        "bloom": (0.15, 0.35),
     },
     "cosmic": {
         "edit_feel": "cinematic",
@@ -102,6 +104,8 @@ STYLE_EDIT: dict[str, dict[str, Any]] = {
         "camera_push": (0.028, 0.050),
         "micro_contrast": 0.13,
         "bpm": (68.0, 84.0),
+        "chroma": (0.5, 1.5),
+        "bloom": (0.25, 0.55),
     },
     "minimal": {
         "edit_feel": "cinematic",
@@ -113,6 +117,8 @@ STYLE_EDIT: dict[str, dict[str, Any]] = {
         "camera_push": (0.015, 0.035),
         "micro_contrast": 0.09,
         "bpm": (64.0, 80.0),
+        "chroma": (0.0, 0.3),
+        "bloom": (0.0, 0.12),
     },
     "organic": {
         "edit_feel": "cinematic",
@@ -124,6 +130,8 @@ STYLE_EDIT: dict[str, dict[str, Any]] = {
         "camera_push": (0.022, 0.045),
         "micro_contrast": 0.12,
         "bpm": (76.0, 92.0),
+        "chroma": (0.2, 0.8),
+        "bloom": (0.10, 0.30),
     },
     "digital": {
         "edit_feel": "cinematic",
@@ -135,6 +143,8 @@ STYLE_EDIT: dict[str, dict[str, Any]] = {
         "camera_push": (0.048, 0.080),
         "micro_contrast": 0.20,
         "bpm": (108.0, 128.0),
+        "chroma": (1.5, 3.2),
+        "bloom": (0.20, 0.50),
     },
     "playful": {
         "edit_feel": "kids_show",
@@ -146,6 +156,8 @@ STYLE_EDIT: dict[str, dict[str, Any]] = {
         "camera_push": (0.0, 0.0),
         "micro_contrast": 0.07,
         "bpm": (90.0, 96.0),
+        "chroma": (0.0, 0.0),
+        "bloom": (0.0, 0.08),
     },
     "documentary": {
         "edit_feel": "documentary",
@@ -157,6 +169,8 @@ STYLE_EDIT: dict[str, dict[str, Any]] = {
         "camera_push": (0.020, 0.042),
         "micro_contrast": 0.14,
         "bpm": (72.0, 84.0),
+        "chroma": (0.2, 0.6),
+        "bloom": (0.05, 0.20),
     },
 }
 

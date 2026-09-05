@@ -14,7 +14,7 @@ from app.utils.paths import project_root
 DEFAULT_CONFIG: dict[str, Any] = {
     "resolution": "1920x1080",
     "fps": 30,
-    "duration": {"min": 15, "max": 60, "default": 30, "options": [10, 15, 30, 60, 120]},
+    "duration": {"min": 15, "max": 600, "default": 30, "options": [10, 15, 30, 60, 120, 180, 300, 600]},
     "batch": {"default_count": 10},
     "audio": {"enabled": True, "sample_rate": 44100},
     "output": {

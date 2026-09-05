@@ -18,6 +18,7 @@ from app.art.education_content import build_hand_art_lesson
 from app.art.education_ui import (
     draw_kids_chrome,
     draw_stage_card,
+    draw_step_progress_bar,
     load_font,
     paste_picture,
     segment_at,
@@ -122,11 +123,40 @@ class HandArtEngine(ArtEngine):
         cv2.polylines(img, [arr], False, faint, max(1, self.stroke), lineType=cv2.LINE_AA)
 
     def _pencil_tip(self, img: np.ndarray, x: float, y: float, color: tuple[int, int, int]) -> None:
-        """Animated pencil cursor at drawing tip."""
+        """Animated realistic artist pencil cursor trailing the drawing tip."""
         px, py = int(x), int(y)
-        cv2.circle(img, (px, py), 5, (60, 50, 40), -1, lineType=cv2.LINE_AA)
-        cv2.circle(img, (px, py), 3, color, -1, lineType=cv2.LINE_AA)
-        cv2.line(img, (px, py), (px + 12, py + 18), (180, 160, 120), 2, lineType=cv2.LINE_AA)
+        shaft_dx, shaft_dy = 20, -26
+        # Sharpened wooden collar cone
+        cone = np.array([[px, py], [px + 7, py - 9], [px + 9, py - 5]], dtype=np.int32)
+        cv2.fillPoly(img, [cone], (212, 185, 142), lineType=cv2.LINE_AA)
+        # Graphite lead tip
+        lead = np.array([[px, py], [px + 3, py - 4], [px + 4, py - 2]], dtype=np.int32)
+        cv2.fillPoly(img, [lead], (45, 45, 50), lineType=cv2.LINE_AA)
+        # Yellow pencil body
+        body = np.array([
+            [px + 7, py - 9],
+            [px + 7 + shaft_dx, py - 9 + shaft_dy],
+            [px + 13 + shaft_dx, py - 5 + shaft_dy],
+            [px + 9, py - 5],
+        ], dtype=np.int32)
+        cv2.fillPoly(img, [body], (238, 180, 52), lineType=cv2.LINE_AA)
+        cv2.polylines(img, [body], True, (150, 105, 25), 1, lineType=cv2.LINE_AA)
+        # Silver metal ferrule
+        ferrule = np.array([
+            [px + 7 + shaft_dx, py - 9 + shaft_dy],
+            [px + 10 + shaft_dx, py - 13 + shaft_dy],
+            [px + 16 + shaft_dx, py - 9 + shaft_dy],
+            [px + 13 + shaft_dx, py - 5 + shaft_dy],
+        ], dtype=np.int32)
+        cv2.fillPoly(img, [ferrule], (195, 200, 205), lineType=cv2.LINE_AA)
+        # Pink rubber eraser
+        eraser = np.array([
+            [px + 10 + shaft_dx, py - 13 + shaft_dy],
+            [px + 13 + shaft_dx, py - 17 + shaft_dy],
+            [px + 19 + shaft_dx, py - 13 + shaft_dy],
+            [px + 16 + shaft_dx, py - 9 + shaft_dy],
+        ], dtype=np.int32)
+        cv2.fillPoly(img, [eraser], (242, 145, 155), lineType=cv2.LINE_AA)
 
     def _collect_strokes(self, kind: str, cx: float, cy: float, s: float, t: float, anim: float) -> list[np.ndarray]:
         """Return list of stroke polylines for a doodle kind."""
@@ -231,10 +261,16 @@ class HandArtEngine(ArtEngine):
         color = tuple(max(0, int(c * 0.75)) for c in self.palette.as_uint8((hash(kind) % 100) / 100.0 + t * 0.08))
         rng = np.random.default_rng(self.seed + int(seg.get("index", 0)) * 97 + 3)
 
-        if progress < 0.9:
-            guide = _hand_circle(cx, cy, s * 1.08)
-            fade = int(180 * (1.0 - progress))
-            cv2.polylines(img, [guide.astype(np.int32)], True, (fade, fade - 10, fade - 15), 1, lineType=cv2.LINE_AA)
+        # Art Teacher Scaffolding: faint blue ghosted construction lines before inking
+        if progress < 0.65:
+            blue_fade = int(220 * (1.0 - progress / 0.65))
+            scaffold_col = (max(0, blue_fade - 35), max(0, blue_fade - 15), min(255, blue_fade + 20))
+            if kind in {"house", "stick"}:
+                # Scaffolding box / axis
+                cv2.rectangle(img, (int(cx - s), int(cy - s * 0.8)), (int(cx + s), int(cy + s * 0.8)), scaffold_col, 1, lineType=cv2.LINE_AA)
+            else:
+                guide = _hand_circle(cx, cy, s * 1.05)
+                cv2.polylines(img, [guide.astype(np.int32)], True, scaffold_col, 1, lineType=cv2.LINE_AA)
 
         tip = self._draw_doodle_smooth(img, kind, cx, cy, s, color, rng, t, anim, progress)
         if tip and progress < 0.98:
@@ -260,6 +296,11 @@ class HandArtEngine(ArtEngine):
             idx = min(len(steps) - 1, int(ease_in_out_cubic(local) * len(steps)))
             hud["overlay_text"] = str(steps[idx])
             hud["line"] = str(steps[idx])
+            pb_w = min(220, int(self.layout.stage.w * 0.44))
+            pb_h = max(24, int(self.layout.stage.h * 0.085))
+            pb_x = self.layout.stage.x1 - pb_w - 14
+            pb_y = self.layout.stage.y0 + 12
+            draw_step_progress_bar(draw, idx, len(steps), (pb_x, pb_y), pb_w, pb_h, self.font_xs, step_label=str(steps[idx]))
 
         if self.show_captions:
             if (

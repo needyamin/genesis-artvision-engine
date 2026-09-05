@@ -15,9 +15,13 @@ __all__ = [
     "draw_engagement_overlay",
     "draw_kids_chrome",
     "draw_learning_strip",
-    "draw_progress_dots",
+    "draw_phonics_badge",
     "draw_picture_card",
+    "draw_progress_dots",
+    "draw_shape_properties_badge",
     "draw_stage_card",
+    "draw_step_progress_bar",
+    "draw_ten_frame",
     "draw_title_banner",
     "kids_layout",
     "load_font",
@@ -270,3 +274,106 @@ def draw_kids_chrome(
     draw_progress_dots(draw, seg, segments, layout.width, layout.height, accent, t=t, layout=layout)
     if celebrate and confetti_seeds is not None:
         draw_confetti(draw, layout.width, layout.height, t, confetti_seeds, intensity=0.22)
+
+
+def draw_phonics_badge(
+    draw: ImageDraw.ImageDraw,
+    seg: dict,
+    xy: tuple[int, int],
+    w: int,
+    h: int,
+    fonts: dict[str, ImageFont.ImageFont],
+    *,
+    alpha: float = 1.0,
+) -> None:
+    """Master Teacher phonics badge: clear phoneme sound vs letter name."""
+    if alpha < 0.15:
+        return
+    phoneme = str(seg.get("phoneme") or "")
+    sound_spelling = str(seg.get("sound_spelling") or "")
+    rhyme = str(seg.get("rhyme_family") or "")
+    if not phoneme and not sound_spelling:
+        return
+    x0, y0 = xy
+    x1, y1 = x0 + w, y0 + h
+    draw.rounded_rectangle((x0, y0, x1, y1), radius=10, fill=(255, 255, 255), outline=(70, 110, 160), width=2)
+    sm = fonts.get("sm") or fonts.get("md")
+    label = f"Phonics: {phoneme} (says \"{sound_spelling}\")"
+    paint_text(draw, (x0 + w // 2, y0 + (h // 3 if rhyme else h // 2)), label, sm, (30, 50, 90), anchor="mm", max_width=w - 10)
+    if rhyme:
+        paint_text(draw, (x0 + w // 2, y0 + (2 * h) // 3), f"Family: {rhyme}", sm, (80, 100, 70), anchor="mm", max_width=w - 10)
+
+
+def draw_ten_frame(
+    draw: ImageDraw.ImageDraw,
+    count: int,
+    xy: tuple[int, int],
+    w: int,
+    h: int,
+    *,
+    dot_color: tuple[int, int, int] = (230, 70, 70),
+    alpha: float = 1.0,
+) -> None:
+    """Subitizing 2x5 Ten-Frame: standard kindergarten & 1st grade math foundation."""
+    if alpha < 0.15 or count <= 0:
+        return
+    x0, y0 = xy
+    draw.rounded_rectangle((x0, y0, x0 + w, y0 + h), radius=10, fill=(255, 255, 255), outline=(80, 100, 130), width=3)
+    cell_w = w / 5.0
+    cell_h = h / 2.0
+    # Grid lines
+    draw.line((x0, y0 + cell_h, x0 + w, y0 + cell_h), fill=(180, 195, 215), width=2)
+    for c in range(1, 5):
+        cx = x0 + c * cell_w
+        draw.line((cx, y0, cx, y0 + h), fill=(180, 195, 215), width=2)
+    # Draw filled dots
+    r = max(4, int(min(cell_w, cell_h) * 0.36))
+    for i in range(min(10, count)):
+        row = i // 5
+        col = i % 5
+        dot_x = int(x0 + (col + 0.5) * cell_w)
+        dot_y = int(y0 + (row + 0.5) * cell_h)
+        draw.ellipse((dot_x - r, dot_y - r, dot_x + r, dot_y + r), fill=dot_color, outline=(40, 40, 40), width=2)
+
+
+def draw_shape_properties_badge(
+    draw: ImageDraw.ImageDraw,
+    sides: int,
+    vertices: int,
+    xy: tuple[int, int],
+    w: int,
+    h: int,
+    font: ImageFont.ImageFont,
+    *,
+    fact: str = "",
+) -> None:
+    """Geometry teacher badge: sides and vertices callout."""
+    x0, y0 = xy
+    draw.rounded_rectangle((x0, y0, x0 + w, y0 + h), radius=12, fill=(255, 255, 250), outline=(100, 130, 80), width=3)
+    corner_txt = f"{sides} Sides  •  {vertices} Corners"
+    paint_text(draw, (x0 + w // 2, y0 + (h // 3 if fact else h // 2)), corner_txt, font, (40, 80, 40), anchor="mm", max_width=w - 12)
+    if fact:
+        paint_text(draw, (x0 + w // 2, y0 + (2 * h) // 3), fact, font, (70, 90, 110), anchor="mm", max_width=w - 12)
+
+
+def draw_step_progress_bar(
+    draw: ImageDraw.ImageDraw,
+    step_idx: int,
+    total_steps: int,
+    xy: tuple[int, int],
+    w: int,
+    h: int,
+    font: ImageFont.ImageFont,
+    *,
+    step_label: str = "",
+) -> None:
+    """Drawing scaffolding progress: Step X of Y with label."""
+    if total_steps <= 0:
+        return
+    x0, y0 = xy
+    draw.rounded_rectangle((x0, y0, x0 + w, y0 + h), radius=8, fill=(240, 245, 250), outline=(120, 140, 170), width=2)
+    frac = min(1.0, (step_idx + 1) / total_steps)
+    fill_w = max(4, int(w * frac))
+    draw.rounded_rectangle((x0, y0, x0 + fill_w, y0 + h), radius=8, fill=(100, 180, 120))
+    txt = f"Step {step_idx + 1}/{total_steps}" + (f": {step_label}" if step_label else "")
+    paint_text(draw, (x0 + w // 2, y0 + h // 2), txt, font, (30, 45, 60), anchor="mm", max_width=w - 8)
