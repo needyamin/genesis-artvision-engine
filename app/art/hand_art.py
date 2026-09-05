@@ -8,23 +8,21 @@ from PIL import Image, ImageDraw
 
 from app.art.base import ArtEngine, register_engine
 from app.art.education_anim import (
-    draw_confetti,
-    draw_prompt_bubble,
     ease_in_out_cubic,
+    kids_breathe,
     partial_polyline,
     segment_local,
-    smooth_pop,
 )
+from app.art.edit_brain import kids_shot
 from app.art.education_content import build_hand_art_lesson
 from app.art.education_ui import (
-    draw_closing_banner,
-    draw_engagement_overlay,
-    draw_learning_strip,
-    draw_progress_dots,
-    draw_title_banner,
+    draw_kids_chrome,
+    draw_stage_card,
     load_font,
+    paste_picture,
     segment_at,
 )
+from app.art.kids_layout import kids_layout
 from app.art.word_images import ensure_word_image
 
 
@@ -71,17 +69,20 @@ class HandArtEngine(ArtEngine):
         self.closing = str(self.lesson.get("closing") or "Great drawing!")
         self.show_captions = bool(self.params.get("show_captions", True))
         self.show_word_images = bool(self.params.get("show_word_images", True))
+        self.easing = "smooth"
+        self.camera_feel = "static"
 
-        base = min(self.width, self.height)
-        self.font_md = load_font(max(28, int(base * 0.075)))
-        self.font_sm = load_font(max(18, int(base * 0.042)))
-        self.font_xs = load_font(max(14, int(base * 0.032)))
+        self.layout = kids_layout(self.width, self.height)
+        self.font_md = load_font(self.layout.md_font)
+        self.font_sm = load_font(self.layout.sm_font)
+        self.font_xs = load_font(max(14, self.layout.sm_font - 2))
 
         self.stroke = max(1, int(self.params.get("stroke_width", 2)))
         self.sketchiness = float(self.params.get("sketchiness", 0.7))
         self.paper_grain = float(self.params.get("paper_grain", 0.35))
         self.confetti_seeds = self.rng.random(40).astype(np.float32)
         self.params["education_lesson"] = self.lesson
+        self._paper_cache = self._make_paper()
 
         if self.show_word_images:
             for seg in self.segments:
@@ -92,7 +93,7 @@ class HandArtEngine(ArtEngine):
     def _segment_at(self, t: float) -> dict:
         return segment_at(self.segments, t)
 
-    def _paper(self) -> np.ndarray:
+    def _make_paper(self) -> np.ndarray:
         assert self.palette is not None and self.rng is not None
         base = np.array(self.palette.as_uint8(0.05), dtype=np.float32)
         paper = np.full((self.height, self.width, 3), [236, 228, 210], dtype=np.float32)
@@ -101,6 +102,9 @@ class HandArtEngine(ArtEngine):
             grain = self.rng.normal(0, 6 * self.paper_grain, (self.height, self.width, 1)).astype(np.float32)
             paper = paper + grain
         return np.clip(paper, 0, 255).astype(np.uint8)
+
+    def _paper(self) -> np.ndarray:
+        return self._paper_cache.copy()
 
     def _stroke(
         self, img: np.ndarray, pts: np.ndarray, color: tuple[int, int, int],
@@ -209,33 +213,20 @@ class HandArtEngine(ArtEngine):
                 tip = (float(partial[-1][0]), float(partial[-1][1]))
         return tip
 
-    def _draw_step_hint(self, draw: ImageDraw.ImageDraw, seg: dict, local: float) -> None:
-        steps = list(seg.get("steps") or [])
-        if not steps:
-            return
-        idx = min(len(steps) - 1, int(ease_in_out_cubic(local) * len(steps)))
-        hint = steps[idx]
-        alpha = smooth_pop(min(1.0, (local % (1.0 / len(steps))) * len(steps) * 2), elastic=False)
-        if alpha < 0.1:
-            return
-        draw.rounded_rectangle(
-            (int(self.width * 0.06), int(self.height * 0.13), int(self.width * 0.94), int(self.height * 0.19)),
-            radius=12, fill=(255, 252, 240), outline=(100, 90, 70), width=2,
-        )
-        draw.text((self.width // 2, int(self.height * 0.16)), hint, font=self.font_sm, fill=(70, 60, 50), anchor="mm")
-
     def render_frame(self, frame_number: int, total_frames: int) -> np.ndarray:
         assert self.palette is not None
         t = frame_number / max(1, total_frames)
         anim = float(self.params.get("animation_speed", 1.0))
         seg = self._segment_at(t)
         local = segment_local(t, seg)
-        progress = ease_in_out_cubic(min(1.0, local * 1.1))
+        shot = kids_shot(local)
+        progress = ease_in_out_cubic(min(1.0, local / 0.72))
 
         img = self._paper()
-        cx = self.width * 0.42
-        cy = self.height * 0.40
-        s = min(self.width, self.height) * 0.14
+        stage = self.layout.stage
+        cx = float(stage.cx)
+        cy = float(stage.cy + (0 if shot.hold_still else kids_breathe(t, 2.0)))
+        s = min(stage.w, stage.h) * 0.28
         kind = str(seg.get("doodle_kind", "star"))
         color = tuple(max(0, int(c * 0.75)) for c in self.palette.as_uint8((hash(kind) % 100) / 100.0 + t * 0.08))
         rng = np.random.default_rng(self.seed + int(seg.get("index", 0)) * 97 + 3)
@@ -250,32 +241,47 @@ class HandArtEngine(ArtEngine):
             self._pencil_tip(img, tip[0], tip[1], color)
 
         if self.mode == "story" and int(seg.get("index", 0)) > 0:
+            pic = self.layout.picture
             for prev in self.segments[: int(seg.get("index", 0))]:
                 pk = str(prev.get("doodle_kind", "star"))
                 pc = tuple(max(0, int(c * 0.5)) for c in self.palette.as_uint8(0.3))
                 prng = np.random.default_rng(self.seed + int(prev.get("index", 0)) * 53)
-                ox = self.width * (0.10 + 0.09 * int(prev.get("index", 0)))
-                oy = self.height * (0.70 + 0.05 * int(prev.get("index", 0)))
-                self._draw_doodle_smooth(img, pk, ox, oy, s * 0.32, pc, prng, t, anim * 0.4, 1.0)
+                idx = int(prev.get("index", 0))
+                ox = pic.x0 + pic.w * (0.22 + 0.18 * (idx % 3))
+                oy = pic.y0 + pic.h * (0.28 + 0.22 * (idx // 3))
+                self._draw_doodle_smooth(img, pk, ox, oy, s * 0.28, pc, prng, t, anim * 0.4, 1.0)
 
         pil = Image.fromarray(img)
         draw = ImageDraw.Draw(pil)
-        self._draw_step_hint(draw, seg, local)
+        draw_stage_card(draw, self.layout, fill=None)
+        hud = dict(seg)
+        steps = list(seg.get("steps") or [])
+        if steps:
+            idx = min(len(steps) - 1, int(ease_in_out_cubic(local) * len(steps)))
+            hud["overlay_text"] = str(steps[idx])
+            hud["line"] = str(steps[idx])
 
         if self.show_captions:
-            draw_title_banner(draw, self.width, self.height, self.lesson_title, self.font_sm)
-            draw_learning_strip(
-                draw, pil, seg, self.width, self.height,
-                {"md": self.font_md, "sm": self.font_sm},
-                show_word_image=self.show_word_images, t=t,
+            if (
+                self.show_word_images
+                and self.mode != "story"
+                and (seg.get("image_path") or seg.get("word"))
+                and shot.picture_scale > 0.12
+            ):
+                paste_picture(pil, seg, self.layout)
+            draw_kids_chrome(
+                draw, pil, self.layout,
+                title=self.lesson_title,
+                seg=hud,
+                segments=self.segments,
+                fonts={"md": self.font_md, "sm": self.font_sm},
+                t=t,
+                closing=self.closing,
+                accent=self.palette.as_uint8(0.45),
+                confetti_seeds=self.confetti_seeds,
+                caption_alpha=shot.caption_alpha,
+                celebrate=shot.celebrate,
             )
-            draw_engagement_overlay(draw, seg, self.width, self.height, self.font_xs, t, self.confetti_seeds)
-            draw_progress_dots(draw, seg, self.segments, self.width, self.height, self.palette.as_uint8(0.45), t=t)
-            if local > 0.8 and seg.get("engage"):
-                draw_prompt_bubble(draw, str(seg["engage"]), int(self.width * 0.5), int(self.height * 0.28), self.font_xs, (local - 0.8) * 5)
-            if t > 0.92:
-                draw_closing_banner(draw, self.width, self.height, self.closing, self.font_sm)
-                draw_confetti(draw, self.width, self.height, t, self.confetti_seeds, intensity=1.0)
 
         arr = np.array(pil, dtype=np.uint8)
         blur = cv2.GaussianBlur(arr, (0, 0), sigmaX=0.6)

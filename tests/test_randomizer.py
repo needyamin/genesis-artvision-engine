@@ -9,7 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.core.randomizer import Randomizer
+from app.gui.branding import app_icon_path, app_logo_path
 from app.utils.validation import load_config
+
+
+def test_app_icon_files_exist():
+    assert app_logo_path().is_file()
+    assert app_icon_path().is_file()
 
 
 def test_same_seed_same_spec():
@@ -40,13 +46,13 @@ def test_forced_engine_style():
     spec = rnd.create_project(
         seed=42,
         engine="particles",
-        style="neon",
+        style="cosmic",
         resolution="1080x1080",
         fps=24,
         duration=15,
     )
     assert spec.engine == "particles"
-    assert spec.style == "neon"
+    assert spec.style == "cosmic"
     assert (spec.width, spec.height) == (1080, 1080)
     assert spec.fps == 24
     assert spec.duration == 15

@@ -8,8 +8,9 @@ from typing import Any
 
 import numpy as np
 
+from app.art.edit_brain import rule_of_thirds_focus
 from app.art.palette import Palette, generate_palette
-from app.art.styles import list_styles, preferred_engines, sample_style_multiplier
+from app.art.styles import list_styles, preferred_engines, sample_edit_look, sample_style_multiplier
 from app.utils.validation import parse_resolution
 
 
@@ -76,48 +77,6 @@ ENGINE_PARAM_SPECS: dict[str, dict[str, Any]] = {
         "core_glow": (0.3, 1.0),
         "drift": (0.05, 0.4),
     },
-    "fractal": {
-        "iterations": (3, 6),
-        "zoom_speed": (0.2, 1.5),
-        "rotation_speed": (0.1, 1.0),
-        "bailout": (2.0, 8.0),
-        "color_speed": (0.2, 1.5),
-    },
-    "mandelbrot": {
-        "max_iter": (30, 80),
-        "zoom_speed": (0.15, 0.8),
-        "pan_x": (-0.8, 0.4),
-        "pan_y": (-0.5, 0.5),
-        "color_cycle": (0.3, 2.0),
-    },
-    "julia": {
-        "max_iter": (30, 80),
-        "cx_amp": (0.2, 0.8),
-        "cy_amp": (0.2, 0.8),
-        "zoom": (0.8, 1.6),
-        "color_cycle": (0.3, 2.0),
-    },
-    "kaleidoscope": {
-        "segments": (4, 16),
-        "layers": (2, 6),
-        "spin": (0.2, 1.5),
-        "pulse": (0.2, 1.2),
-        "complexity": (0.3, 1.0),
-    },
-    "geometric": {
-        "shape_count": (5, 40),
-        "rotation_speed": (0.1, 1.5),
-        "size_variance": (0.2, 1.0),
-        "line_width": (1.0, 4.0),
-        "filled_ratio": (0.2, 0.8),
-    },
-    "flow_field": {
-        "particle_count": (300, 1200),
-        "noise_scale": (0.001, 0.01),
-        "strength": (0.5, 3.0),
-        "trail": (0.88, 0.98),
-        "z_speed": (0.002, 0.02),
-    },
     "waves": {
         "layers": (2, 7),
         "frequency": (0.5, 3.0),
@@ -132,70 +91,27 @@ ENGINE_PARAM_SPECS: dict[str, dict[str, Any]] = {
         "twist": (0.0, 2.0),
         "pulse": (0.2, 1.2),
     },
-    "voronoi": {
-        "sites": (12, 50),
-        "speed": (0.2, 1.2),
-        "edge_width": (0.01, 0.08),
-        "fill_mode": ["solid", "gradient", "distance"],
-        "morph": (0.2, 1.0),
-    },
-    "reaction_diffusion": {
-        "feed": (0.02, 0.08),
-        "kill": (0.045, 0.07),
-        "diffusion_a": (0.8, 1.2),
-        "diffusion_b": (0.3, 0.6),
-        "steps_per_frame": (2, 8),
-        "scale": (0.5, 1.2),
-    },
-    "noise": {
-        "octaves": (2, 5),
-        "lacunarity": (1.8, 2.8),
-        "gain": (0.4, 0.7),
-        "speed": (0.2, 1.5),
-        "warp": (0.0, 1.2),
-        "contrast": (0.5, 1.5),
-    },
-    "l_system": {
-        "iterations": (3, 5),
-        "angle": (15.0, 45.0),
-        "length_scale": (0.4, 0.75),
-        "wind": (0.0, 1.0),
-        "branch_count": (1, 3),
-    },
-    "neon_lines": {
-        "line_count": (8, 40),
-        "thickness": (1.5, 5.0),
-        "speed": (0.4, 2.0),
-        "glow": (0.5, 1.0),
-        "chaos": (0.1, 1.0),
-    },
-    "particle_trails": {
-        "count": (40, 120),
-        "trail_length": (20, 60),
-        "speed": (0.5, 2.5),
-        "curl": (0.2, 2.0),
-        "size": (1.0, 4.0),
-    },
     "alphabet_cartoon": {
-        "mode": ["chart", "focus", "parade", "lesson", "spell"],
+        "mode": ["lesson", "lesson", "lesson", "spell", "focus", "chart"],
         "lesson_theme": [
-            "letter_of_day",
-            "abc_chart",
+            "letter_of_day", "letter_of_day",
+            "phonics", "phonics",
+            "dictionary", "dictionary",
+            "real_world_math", "real_world_math", "real_world_math",
             "word_builder",
-            "phonics",
             "animal_friends",
             "count_fun",
         ],
-        "columns": (5, 8),
-        "bounce": (0.4, 1.0),
-        "wobble": (0.2, 0.9),
-        "letter_scale": (0.09, 0.15),
+        "columns": (5, 7),
+        "bounce": (0.18, 0.38),
+        "wobble": (0.04, 0.16),
+        "letter_scale": (0.16, 0.22),
         "include_numbers": [False, False, True],
         "show_motifs": [True, True, False],
         "show_lowercase": [True, True, False],
-        "background": ["notebook", "sky", "classroom", "pastel"],
-        "sparkle": (0.3, 1.0),
-        "pop_in": [True, True, False],
+        "background": ["notebook", "sky", "pastel", "pastel"],
+        "sparkle": (0.06, 0.18),
+        "pop_in": [True],
         "show_word_images": [True, True, True],
     },
     "hand_art": {
@@ -209,11 +125,23 @@ ENGINE_PARAM_SPECS: dict[str, dict[str, Any]] = {
         "show_word_images": [True, True, True],
     },
     "kids_doodles": {
-        "shape_count": (10, 28),
+        "shape_count": (4, 8),
         "board_mode": ["colorful", "colorful", "chalkboard"],
-        "lesson_theme": ["shape_fun", "color_rainbow", "count_along", "word_stickers", "creative_play"],
+        "lesson_theme": [
+            "count_along", "real_world_math", "real_world_math",
+            "dictionary", "word_stickers",
+            "shape_fun", "color_rainbow",
+        ],
         "show_captions": [True, True, True],
         "show_word_images": [True, True, True],
+    },
+    "infographic_explainer": {
+        "domain": ["astronomy", "earth_science", "technology", "biology", "all"],
+        "hud_density": (0.5, 1.0),
+        "schematic_glow": (0.5, 1.0),
+        "diagram_speed": (0.6, 1.4),
+        "show_radar": [True, True, False],
+        "metric_counter_speed": (0.8, 1.5),
     },
 }
 
@@ -285,6 +213,9 @@ class Randomizer:
         params["glow"] = multipliers["glow"]
         params["animation_speed"] = multipliers["speed"]
         params["contrast"] = multipliers["contrast"]
+        params["_duration"] = duration_val
+        params["style"] = style_name
+        params.update(_edit_look(rng, engine_name, style_name, seed))
 
         palette = generate_palette(rng, style_name)
 
@@ -363,3 +294,29 @@ class Randomizer:
             else:
                 params[key] = value
         return params
+
+
+KIDS_ENGINES = frozenset({"alphabet_cartoon", "hand_art", "kids_doodles"})
+
+
+def _edit_look(
+    rng: np.random.Generator,
+    engine: str,
+    style: str,
+    seed: int,
+) -> dict[str, Any]:
+    """Kids engines lock to broadcast; every other pair uses the style's own edit."""
+    fx, fy = rule_of_thirds_focus(seed)
+    if engine in KIDS_ENGINES:
+        look = sample_edit_look(rng, "playful")
+        look["focus_x"] = 0.5
+        look["focus_y"] = 0.5
+        look["camera_push"] = 0.0
+        look["grain"] = 0.0
+        return look
+    look = sample_edit_look(rng, style)
+    look["focus_x"] = fx
+    look["focus_y"] = fy
+    if engine == "infographic_explainer" and style not in {"documentary", "cosmic", "digital"}:
+        look["edit_feel"] = "documentary"
+    return look

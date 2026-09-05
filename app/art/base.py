@@ -115,23 +115,12 @@ def ensure_engines_loaded() -> None:
         return
     from app.art import (  # noqa: F401
         alphabet_cartoon,
-        flow_field,
-        fractals,
         galaxy,
-        geometric,
         hand_art,
-        julia,
-        kaleidoscope,
+        infographic_explainer,
         kids_doodles,
-        l_system,
-        mandelbrot,
-        neon_lines,
-        noise,
-        particle_trails,
         particles,
-        reaction_diffusion,
         tunnel,
-        voronoi,
         waves,
     )
 

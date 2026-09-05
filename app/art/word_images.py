@@ -12,6 +12,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from app.art.education_content import LETTER_WORDS, NUMBER_WORDS
+from app.art.fonts import load_font
 from app.utils.paths import project_root
 
 
@@ -22,17 +23,7 @@ def word_image_dir() -> Path:
 
 
 def _font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
-    for path in (
-        "C:/Windows/Fonts/comicbd.ttf",
-        "C:/Windows/Fonts/arialbd.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-    ):
-        if Path(path).exists():
-            try:
-                return ImageFont.truetype(path, size=size)
-            except OSError:
-                continue
-    return ImageFont.load_default()
+    return load_font(size)
 
 
 def _all_words() -> list[str]:
@@ -46,6 +37,8 @@ def _all_words() -> list[str]:
         {
             "STAR", "SUN", "MOON", "TREE", "HOUSE", "FISH", "CAT", "DOG", "BALL",
             "APPLE", "RAINBOW", "UMBRELLA", "PENCIL", "ZEBRA", "BOX", "WAVE",
+            "HEART", "FRIEND", "SPIRAL", "X-RAY", "X-RAY FISH", "JAGUAR", "NEWT",
+            "QUAIL", "VULTURE", "IGUANA", "CLOUD",
         }
     )
     return sorted(words)
@@ -118,8 +111,10 @@ def _draw_scene(draw: ImageDraw.ImageDraw, word: str, w: int, h: int, main: tupl
         if word == "BALL":
             draw.arc((cx - s, cy - s, cx + s, cy + s), 20, 160, fill=dark, width=4)
             draw.line((cx - s, cy, cx + s, cy), fill=dark, width=3)
-    elif word in {"CAT", "DOG", "LION", "TIGER", "WOLF", "FOX", "PIG", "MOUSE", "MONKEY", "RABBIT", "GOAT", "HORSE", "YAK", "ZEBRA", "COW"}:
+    elif word in {"CAT", "DOG", "LION", "TIGER", "WOLF", "FOX", "PIG", "MOUSE", "MONKEY", "RABBIT", "GOAT", "HORSE", "YAK", "ZEBRA", "COW", "JAGUAR", "IGUANA", "NEWT"}:
         fill = (240, 180, 80) if word != "ZEBRA" else (245, 245, 245)
+        if word == "JAGUAR":
+            fill = (235, 170, 60)
         circle(cx, cy + s // 8, int(s * 0.85), fill=fill)
         circle(cx, cy - s // 2, int(s * 0.55), fill=fill)
         # ears
@@ -130,7 +125,13 @@ def _draw_scene(draw: ImageDraw.ImageDraw, word: str, w: int, h: int, main: tupl
         if word == "ZEBRA":
             for i in range(-2, 3):
                 draw.line((cx + i * s // 5, cy - s // 5, cx + i * s // 5, cy + s // 2), fill=(30, 30, 30), width=4)
-    elif word in {"BIRD", "DUCK", "OWL", "CHICKEN"}:
+        if word == "JAGUAR":
+            for ox, oy in ((-s // 3, 0), (s // 4, s // 5), (0, -s // 6), (s // 3, -s // 8)):
+                circle(cx + ox, cy + oy + s // 8, s // 14, fill=(90, 55, 20))
+        if word in {"IGUANA", "NEWT"}:
+            for i in range(4):
+                circle(cx - s // 2 + i * s // 4, cy - s, s // 14, fill=(70, 150, 90))
+    elif word in {"BIRD", "DUCK", "OWL", "CHICKEN", "QUAIL", "VULTURE"}:
         circle(cx, cy, int(s * 0.7), fill=(255, 210, 80))
         circle(cx + s // 2, cy - s // 3, int(s * 0.35), fill=(255, 210, 80))
         draw.polygon([(cx + int(s * 0.75), cy - s // 3), (cx + int(s * 1.2), cy - s // 5), (cx + int(s * 0.75), cy - s // 8)], fill=(255, 140, 40))
@@ -167,9 +168,49 @@ def _draw_scene(draw: ImageDraw.ImageDraw, word: str, w: int, h: int, main: tupl
     elif word in {"UMBRELLA", "HAT", "CROWN", "QUEEN"}:
         draw.pieslice((cx - s, cy - s // 2, cx + s, cy + s // 2), 180, 360, fill=(220, 60, 90), outline=dark)
         draw.line((cx, cy, cx, cy + s), fill=dark, width=5)
-    elif word in {"PENCIL", "BOOK", "LAMP", "KEY", "WATCH", "DRUM", "VIOLIN", "XYLOPHONE"}:
+    elif word in {"PENCIL", "BOOK", "LAMP", "KEY", "WATCH", "DRUM", "VIOLIN"}:
         rect(cx - s // 3, cy - s, cx + s // 3, cy + s // 2, fill=(255, 210, 70))
         draw.polygon([(cx - s // 3, cy + s // 2), (cx, cy + s), (cx + s // 3, cy + s // 2)], fill=(240, 200, 150), outline=dark)
+    elif word == "XYLOPHONE":
+        bar_colors = [(230, 70, 70), (240, 140, 60), (240, 210, 70), (110, 190, 100), (70, 150, 220), (140, 100, 210)]
+        bar_w = int(s * 1.7 / len(bar_colors))
+        start_x = cx - int(s * 0.85)
+        for i, bc in enumerate(bar_colors):
+            bar_len = int(s * 1.1 - i * (s * 0.09))
+            x0 = start_x + i * bar_w
+            rect(x0, cy - bar_len // 2, x0 + bar_w - 4, cy + bar_len // 2, fill=bc, outline=dark)
+    elif word == "X-RAY" or word == "X-RAY FISH":
+        # Simple bone icon representing an X-ray image
+        circle(cx - s // 2, cy, s // 4, fill=(235, 235, 235), outline=dark)
+        circle(cx + s // 2, cy, s // 4, fill=(235, 235, 235), outline=dark)
+        rect(cx - s // 2, cy - s // 10, cx + s // 2, cy + s // 10, fill=(235, 235, 235), outline=dark)
+    elif word == "SPIRAL":
+        import math
+
+        pts = []
+        turns = 3.2
+        max_r = s
+        for i in range(80):
+            frac = i / 79
+            ang = frac * turns * 2 * math.pi
+            r = frac * max_r
+            pts.append((cx + math.cos(ang) * r, cy + math.sin(ang) * r))
+        draw.line(pts, fill=main, width=max(4, s // 12), joint="curve")
+    elif word == "FRIEND":
+        circle(cx, cy - s // 2, s // 3, fill=(250, 210, 170), outline=dark)
+        rect(cx - s // 3, cy - s // 8, cx + s // 3, cy + s, fill=main, outline=dark)
+        draw.line((cx - s // 3, cy, cx - int(s * 0.8), cy - s // 4), fill=main, width=max(4, s // 10))
+        draw.line((cx + s // 3, cy, cx + int(s * 0.8), cy - s // 4), fill=main, width=max(4, s // 10))
+    elif word == "HEART":
+        import math
+
+        pts = []
+        for i in range(50):
+            v = i / 49 * 2 * math.pi
+            x = 16 * (math.sin(v) ** 3)
+            y = -(13 * math.cos(v) - 5 * math.cos(2 * v) - 2 * math.cos(3 * v) - math.cos(4 * v))
+            pts.append((cx + x * s / 16, cy + y * s / 16))
+        draw.polygon(pts, fill=(230, 60, 90), outline=(150, 30, 50))
     elif word in {"CLOUD", "WATER", "WAVE", "OCEAN", "ICE", "SNOW"}:
         for ox, oy, r in ((-s // 2, 0, s // 2), (0, -s // 4, int(s * 0.6)), (s // 2, 0, s // 2)):
             circle(cx + ox, cy + oy, r, fill=(230, 240, 255), outline=(140, 170, 210))
@@ -244,6 +285,60 @@ def load_word_image(word: str, target_size: int = 256) -> Image.Image:
     if img.size[0] != target_size:
         img = img.resize((target_size, target_size), Image.Resampling.LANCZOS)
     return img
+
+
+def paste_illustration(
+    base: Image.Image,
+    source: str | Path,
+    center: tuple[int, int],
+    size: int,
+    *,
+    bounce: int = 0,
+) -> Image.Image:
+    """Paste a generated scene PNG (or fall back to a word card)."""
+    path = Path(str(source)) if source else None
+    if path is not None and path.is_file():
+        card = Image.open(path).convert("RGBA")
+        target = max(32, int(size))
+        if card.size[0] != target:
+            card = card.resize((target, target), Image.Resampling.LANCZOS)
+        frame = Image.new("RGBA", (target + 16, target + 16), (0, 0, 0, 0))
+        fd = ImageDraw.Draw(frame)
+        fd.rounded_rectangle(
+            (0, 0, target + 15, target + 15),
+            radius=18,
+            fill=(255, 255, 255, 240),
+            outline=(60, 80, 110, 255),
+            width=3,
+        )
+        frame.paste(card, (8, 8), card)
+        overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+        x = int(center[0] - frame.size[0] / 2)
+        y = int(center[1] - frame.size[1] / 2 + bounce)
+        overlay.paste(frame, (x, y), frame)
+        composed = Image.alpha_composite(base.convert("RGBA"), overlay)
+        rgb = composed.convert("RGB")
+        base.paste(rgb)
+        return base
+    return paste_word_image(base, str(source), center, size, bounce=bounce)
+
+
+def paste_segment_image(
+    base: Image.Image,
+    seg: dict,
+    center: tuple[int, int],
+    size: int,
+    *,
+    bounce: int = 0,
+) -> Image.Image:
+    """Prefer an AI-realized image_path, otherwise the lesson word card."""
+    path = str(seg.get("image_path") or "")
+    if path:
+        return paste_illustration(base, path, center, size, bounce=bounce)
+    word = str(seg.get("word") or seg.get("motif") or "")
+    if word:
+        return paste_word_image(base, word, center, size, bounce=bounce)
+    return base
 
 
 def paste_word_image(

@@ -39,7 +39,21 @@ class AudioGenerator:
         """
         try:
             params = params or {}
-            if engine in KIDS_EDUCATION_ENGINES or params.get("education_lesson"):
+            profile = params.get("audio_profile") if isinstance(params.get("audio_profile"), dict) else {}
+            if engine == "infographic_explainer" or params.get("topic_data"):
+                topic_data = params.get("topic_data")
+                if not isinstance(topic_data, dict):
+                    from app.art.knowledge_content import build_knowledge_topic
+                    topic_data = build_knowledge_topic(seed, duration, params=params)
+                from app.audio.documentary_soundtrack import generate_documentary_audio
+                samples = generate_documentary_audio(
+                    duration,
+                    seed,
+                    topic_data,
+                    sample_rate=self.sample_rate,
+                    audio_profile=profile,
+                )
+            elif engine in KIDS_EDUCATION_ENGINES or params.get("education_lesson"):
                 lesson = params.get("education_lesson")
                 if not isinstance(lesson, dict):
                     lesson = build_lesson_for_engine(engine or "", seed, duration, params=params)
@@ -51,6 +65,7 @@ class AudioGenerator:
                     seed,
                     lesson,
                     sample_rate=self.sample_rate,
+                    audio_profile=profile,
                 )
             else:
                 samples = generate_procedural_audio(
@@ -58,6 +73,7 @@ class AudioGenerator:
                     seed,
                     sample_rate=self.sample_rate,
                     style=style,
+                    audio_profile=profile,
                 )
                 asset = self._pick_local_asset(seed)
                 if asset is not None:

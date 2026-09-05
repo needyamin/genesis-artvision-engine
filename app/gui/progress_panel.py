@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QPlainTextEdit,
     QProgressBar,
     QSizePolicy,
     QVBoxLayout,
@@ -46,7 +47,21 @@ class ProgressPanel(QWidget):
         self.video = self._row(grid, "Video")
         self.time = self._row(grid, "Elapsed")
         inner.addLayout(grid)
-        inner.addStretch(1)
+
+        ai_label = QLabel("AI creative director")
+        ai_label.setObjectName("StatKey")
+        inner.addWidget(ai_label)
+        self.ai_log = QPlainTextEdit()
+        self.ai_log.setObjectName("AiLog")
+        self.ai_log.setReadOnly(True)
+        self.ai_log.setPlaceholderText(
+            "When the AI advisor is on, suggestions appear here while they load — "
+            "the rest of the window stays responsive."
+        )
+        self.ai_log.setMinimumHeight(72)
+        self.ai_log.setMaximumHeight(160)
+        self.ai_log.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        inner.addWidget(self.ai_log, 1)
 
         layout.addWidget(box)
 
@@ -71,6 +86,22 @@ class ProgressPanel(QWidget):
         self.video.setText("—")
         self.time.setText("—")
         self.status.setText("Ready when you are")
+        self.set_ai_log("AI idle — turn on AI creative advisor in Extras to see suggestions here.")
+
+    def set_ai_log(self, text: str) -> None:
+        self.ai_log.setPlainText(text or "")
+        cursor = self.ai_log.textCursor()
+        cursor.movePosition(cursor.MoveOperation.Start)
+        self.ai_log.setTextCursor(cursor)
+
+    def append_ai_log(self, text: str) -> None:
+        line = (text or "").strip()
+        if not line:
+            return
+        existing = self.ai_log.toPlainText().strip()
+        combined = f"{existing}\n{line}".strip() if existing else line
+        lines = combined.splitlines()
+        self.set_ai_log("\n".join(lines[-40:]))
 
     def update_progress(
         self,

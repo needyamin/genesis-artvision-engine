@@ -36,7 +36,56 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--config", type=str, default=None, help="Path to config.yaml")
     parser.add_argument("--output", type=str, default=None, help="Output directory")
+    parser.add_argument(
+        "--ai",
+        action="store_true",
+        help="Enable OpenRouter creative advisor for this run (per-video suggestions)",
+    )
+    parser.add_argument(
+        "--curate",
+        action="store_true",
+        help="Expand offline education catalogs via OpenRouter (no video render)",
+    )
+    parser.add_argument(
+        "--letters",
+        type=str,
+        default=None,
+        help="Comma-separated letters for --curate (default: full alphabet)",
+    )
     return parser
+
+
+def _apply_ai_cli_flags(config: dict, *, enable_ai: bool) -> None:
+    if not enable_ai:
+        return
+    ai = config.setdefault("ai", {})
+    ai["enabled"] = True
+    ai["per_video"] = True
+
+
+def run_curate(args: argparse.Namespace) -> int:
+    from app.ai.client import AIClientError
+    from app.ai.curate import curate_letters
+    from app.utils.logger import setup_logging
+    from app.utils.paths import ensure_directories
+    from app.utils.validation import load_config
+
+    config = load_config(args.config)
+    ensure_directories(config)
+    setup_logging(config)
+    config.setdefault("ai", {})["enabled"] = True
+
+    letters = None
+    if args.letters:
+        letters = [c.strip().upper() for c in args.letters.split(",") if c.strip()]
+
+    try:
+        path = curate_letters(config, letters)
+    except AIClientError as exc:
+        print(f"Curate failed: {exc}")
+        return 1
+    print(f"Wrote education catalog: {path}")
+    return 0
 
 
 def run_cli(args: argparse.Namespace) -> int:
@@ -46,6 +95,7 @@ def run_cli(args: argparse.Namespace) -> int:
     from app.utils.validation import load_config
 
     config = load_config(args.config)
+    _apply_ai_cli_flags(config, enable_ai=args.ai)
     ensure_directories(config)
     setup_logging(config)
 
@@ -93,23 +143,33 @@ def run_gui(args: argparse.Namespace) -> int:
     from app.utils.validation import load_config
 
     config = load_config(args.config)
+    _apply_ai_cli_flags(config, enable_ai=args.ai)
     ensure_directories(config)
     setup_logging(config)
 
     from PySide6.QtWidgets import QApplication
+    from app.gui.branding import apply_app_icon, apply_windows_app_id
     from app.gui.main_window import MainWindow
 
+    apply_windows_app_id()
     app = QApplication(sys.argv)
     app.setApplicationName("Genesis Artvision Engine")
     app.setOrganizationName("ANSNEW TECH")
+    apply_app_icon(app)
     window = MainWindow(config)
+    apply_app_icon(window)
     window.showMaximized()
     return app.exec()
 
 
 def main() -> int:
+    from app.utils.dotenv import load_dotenv
+
+    load_dotenv()
     parser = build_parser()
     args = parser.parse_args()
+    if args.curate:
+        return run_curate(args)
     if args.generate or args.test:
         return run_cli(args)
     return run_gui(args)

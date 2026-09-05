@@ -1,34 +1,86 @@
 # Genesis Artvision Engine — ANSNEW TECH
+
+# --- secrets (public GitHub — never commit real keys) ---
+.env
+.env.*
+!.env.example
+secrets.yaml
+secrets.yml
+**/api_keys.*
+*.pem
+*.key
+
+# --- python ---
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-.env
 .venv/
 venv/
 env/
 *.egg-info/
 dist/
 build/
+pip-wheel-metadata/
+
+# --- tests / linters ---
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
-*.log
+.tox/
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# --- run output (regenerated locally) ---
 output/*
 !output/.gitkeep
 temp/*
 !temp/.gitkeep
 logs/*
 !logs/.gitkeep
-*.mp4
-*.wav
-*.jpg
-!assets/**/*
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.db
+*.log
+
+# --- local data / caches ---
 data/*.db
+data/history.db
+data/ai_cache/
+data/ai_catalogs/
+data/ai_scenes/
+data/ai_voice/
+*.db
+
+# TTS scratch next to cached wavs
+*.ssml
+*.ps1
+
+# --- rendered media (never commit movies / dumps) ---
+*.mp4
+*.webm
+*.mov
+*.avi
+*.wav
+*.mp3
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+
+# Keep shipped icons only (word cards and scenes are generated on run)
+!assets/app_icon.jpg
+!assets/app_icon.ico
+!assets/app_icon.png
+!assets/music/**
+!assets/education/words/.gitkeep

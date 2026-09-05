@@ -22,7 +22,7 @@ def test_database_insert_and_list(tmp_path: Path):
         height=180,
         fps=10,
         engine="particles",
-        style="neon",
+        style="cosmic",
         params_json="{}",
         output_path=str(tmp_path / "a.mp4"),
         thumbnail_path=None,

@@ -9,7 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from app.art.education_content import KIDS_EDUCATION_ENGINES, build_lesson_for_engine
+from app.art.education_content import (
+    KIDS_EDUCATION_ENGINES,
+    build_lesson_for_engine,
+    ensure_ai_catalogs_loaded,
+)
 from app.audio.generator import AudioGenerator
 from app.core.project import cleanup_work_dir, make_work_dir, next_output_paths
 from app.core.randomizer import ProjectSpec, Randomizer
@@ -124,6 +128,35 @@ class VideoFactory:
                     }
                 )
 
+            if control and control.stopped:
+                raise InterruptedError("Render cancelled by user")
+
+            # Optional AI creative advisor (cached JSON suggestions only)
+            from app.ai.advisor import maybe_enrich_spec
+
+            ensure_ai_catalogs_loaded(self.config)
+            spec = maybe_enrich_spec(spec, self.config, on_progress=on_progress)
+
+            if control and control.stopped:
+                raise InterruptedError("Render cancelled by user")
+
+            # Informative documentary explainer: shared topic for video + audio
+            if spec.engine == "infographic_explainer":
+                from app.art.knowledge_content import build_knowledge_topic
+                topic_data = spec.params.get("topic_data")
+                if not isinstance(topic_data, dict):
+                    domain = str(spec.params.get("domain") or "all")
+                    topic_id = spec.params.get("topic_id")
+                    topic_data = build_knowledge_topic(
+                        spec.seed,
+                        spec.duration,
+                        domain=domain,
+                        topic_id=str(topic_id) if topic_id else None,
+                        params=spec.params,
+                    )
+                    spec.params["topic_data"] = topic_data
+                spec.params["_duration"] = spec.duration
+
             # Kids educational engines: shared lesson for video + audio
             if spec.engine in KIDS_EDUCATION_ENGINES:
                 lesson = build_lesson_for_engine(
@@ -136,10 +169,51 @@ class VideoFactory:
                     spec.params["_duration"] = spec.duration
                     spec.params["education_lesson"] = lesson
                     if spec.engine == "alphabet_cartoon":
-                        if spec.params.get("mode") not in {
+                        vis = str(lesson.get("visual_mode") or "lesson")
+                        spec.params["mode"] = vis if vis in {
                             "chart", "focus", "parade", "lesson", "spell",
-                        }:
-                            spec.params["mode"] = lesson.get("visual_mode", "lesson")
+                        } else "lesson"
+                    spec.params["_kids_text"] = True
+                    spec.params["easing"] = "smooth"
+                    spec.params["camera_feel"] = "static"
+                    spec.params["edit_feel"] = "kids_show"
+                    spec.params["grade"] = "broadcast"
+                    spec.params["camera_push"] = 0.0
+                    spec.params["grain"] = 0.0
+                    profile = spec.params.get("audio_profile")
+                    if not isinstance(profile, dict):
+                        profile = {}
+                    else:
+                        profile = dict(profile)
+                    try:
+                        profile["voice_rate"] = min(float(profile.get("voice_rate") or 0.68), 0.72)
+                    except (TypeError, ValueError):
+                        profile["voice_rate"] = 0.68
+                    try:
+                        profile["voice_pitch"] = min(max(float(profile.get("voice_pitch") or 1.10), 1.02), 1.16)
+                    except (TypeError, ValueError):
+                        profile["voice_pitch"] = 1.10
+                    spec.params["audio_profile"] = profile
+                    try:
+                        spec.params["blur"] = min(float(spec.params.get("blur") or 0.0), 0.12)
+                    except (TypeError, ValueError):
+                        spec.params["blur"] = 0.08
+                    try:
+                        speed = float(spec.params.get("animation_speed") or 0.7)
+                        spec.params["animation_speed"] = float(max(0.5, min(0.8, speed)))
+                    except (TypeError, ValueError):
+                        spec.params["animation_speed"] = 0.7
+                    try:
+                        spec.params["glow"] = min(float(spec.params.get("glow") or 0.12), 0.18)
+                    except (TypeError, ValueError):
+                        spec.params["glow"] = 0.12
+
+            from app.ai.realize import realize_visual_assets
+
+            spec = realize_visual_assets(spec, on_progress=on_progress)
+
+            if control and control.stopped:
+                raise InterruptedError("Render cancelled by user")
 
             if spec.audio_enabled:
                 if on_progress:

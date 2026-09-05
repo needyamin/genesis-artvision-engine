@@ -2,30 +2,30 @@
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 
 from app.art.base import ArtEngine, register_engine
 from app.art.education_anim import (
-    draw_confetti,
     draw_glow_ring,
-    draw_prompt_bubble,
     ease_in_out_cubic,
+    kids_breathe,
+    kids_pop,
     segment_local,
-    smooth_pop,
 )
+from app.art.edit_brain import kids_shot
 from app.art.education_content import build_kids_doodle_lesson
 from app.art.education_ui import (
-    draw_closing_banner,
-    draw_engagement_overlay,
-    draw_learning_strip,
-    draw_progress_dots,
-    draw_title_banner,
+    draw_kids_chrome,
+    draw_picture_card,
+    draw_stage_card,
     load_font,
+    paint_text,
+    paste_picture,
     segment_at,
 )
-from app.art.word_images import ensure_word_image, paste_word_image
+from app.art.kids_layout import kids_layout
+from app.art.word_images import ensure_word_image
 
 
 @register_engine
@@ -51,30 +51,33 @@ class KidsDoodleEngine(ArtEngine):
         self.closing = str(self.lesson.get("closing") or "Great job!")
         self.show_word_images = bool(self.params.get("show_word_images", True))
         self.show_captions = bool(self.params.get("show_captions", True))
+        self.easing = "smooth"
+        self.camera_feel = "static"
 
-        base = min(self.width, self.height)
-        self.font_lg = load_font(max(48, int(base * 0.22)))
-        self.font_md = load_font(max(28, int(base * 0.075)))
-        self.font_sm = load_font(max(18, int(base * 0.042)))
-        self.font_xs = load_font(max(14, int(base * 0.032)))
+        self.layout = kids_layout(self.width, self.height)
+        self.font_lg = load_font(self.layout.hero_font)
+        self.font_md = load_font(self.layout.md_font)
+        self.font_sm = load_font(self.layout.sm_font)
+        self.font_xs = load_font(max(14, self.layout.sm_font - 2))
 
         self.shapes = []
-        n = int(self.params.get("shape_count", 14))
-        kinds = ["circle", "square", "triangle", "star", "heart", "blob"]
+        n = min(6, max(3, int(self.params.get("shape_count", 6))))
+        kinds = ["circle", "square", "triangle", "star", "heart"]
         for _ in range(n):
             self.shapes.append(
                 {
                     "kind": str(self.rng.choice(kinds)),
-                    "x": float(self.rng.random()),
-                    "y": float(self.rng.random()),
-                    "size": float(self.rng.uniform(0.03, 0.08)),
+                    "x": float(self.rng.uniform(0.10, 0.90)),
+                    "y": float(self.rng.uniform(0.18, 0.55)),
+                    "size": float(self.rng.uniform(0.018, 0.035)),
                     "hue": float(self.rng.random()),
                     "phase": float(self.rng.random() * np.pi * 2),
-                    "spin": float(self.rng.uniform(-1.0, 1.0)),
+                    "spin": 0.0,
                 }
             )
-        self.stickers = list(self.rng.choice(list("★♥✦✿☀☁☂♫"), size=8))
-        self.confetti_seeds = self.rng.random(40).astype(np.float32)
+        self.stickers: list[str] = []
+        self.confetti_seeds = self.rng.random(18).astype(np.float32)
+        self._dust = self.rng.random((self.height, self.width)).astype(np.float32) * 3
         self.params["education_lesson"] = self.lesson
 
         if self.show_word_images:
@@ -91,13 +94,12 @@ class KidsDoodleEngine(ArtEngine):
         board_mode = str(self.params.get("board_mode", "colorful"))
         if board_mode == "chalkboard":
             base = np.full((self.height, self.width, 3), (34, 74, 48), dtype=np.float32)
-            dust = self.rng.random((self.height, self.width)).astype(np.float32) * 6 * np.sin(t * 3)
-            base = np.clip(base + dust[:, :, None], 0, 255)
+            base = np.clip(base + self._dust[:, :, None], 0, 255)
             return Image.fromarray(base.astype(np.uint8))
         c0 = np.array(self.palette.as_uint8(0.08), dtype=np.float32)
         c1 = np.array(self.palette.as_uint8(0.55), dtype=np.float32)
         yy = np.linspace(0, 1, self.height, dtype=np.float32)[:, None, None]
-        wave = 0.04 * np.sin(yy * np.pi * 3 + t * 2)
+        wave = 0.015 * np.sin(yy * np.pi * 2)
         bg = (c0 * (1.0 - yy - wave) + c1 * (yy + wave))
         bg = np.broadcast_to(bg, (self.height, self.width, 3)).copy()
         return Image.fromarray(np.clip(bg, 0, 255).astype(np.uint8))
@@ -173,110 +175,138 @@ class KidsDoodleEngine(ArtEngine):
                 draw.polygon(trace_pts, fill=fill_rgba, outline=outline_rgba)
 
     def _draw_decor(self, draw: ImageDraw.ImageDraw, t: float, anim: float) -> None:
+        del anim
         assert self.palette is not None
+        stage = self.layout.stage
         for s in self.shapes:
-            drift = ease_in_out_cubic((np.sin(t * anim * 2 + s["phase"]) + 1) * 0.5)
-            x = int((s["x"] + 0.015 * drift) * self.width)
-            y = int((s["y"] + 0.012 * np.cos(t * anim * 1.5 + s["phase"])) * self.height)
-            size = int(s["size"] * min(self.width, self.height) * (0.55 + 0.1 * np.sin(t * 3 + s["phase"])))
-            color = self.palette.as_uint8((s["hue"] + t * 0.08) % 1.0)
-            outline = tuple(max(0, c - 50) for c in color)
-            self._draw_shape(draw, s["kind"], x, y, size, color, outline, t * s["spin"] * 20, trace=0.6 + 0.4 * drift)
-
-        for i, ch in enumerate(self.stickers):
-            x = int(((i * 0.12 + t * anim * 0.08) % 1.0) * self.width)
-            y = int(self.height * (0.11 + 0.05 * np.sin(i + t * 3)))
-            draw.text((x, y), ch, font=self.font_sm, fill=self.palette.as_uint8((i * 0.1 + t) % 1.0))
+            x = int(stage.x0 + s["x"] * stage.w)
+            y = int(stage.y0 + s["y"] * stage.h)
+            size = int(s["size"] * min(stage.w, stage.h))
+            color = self.palette.as_uint8(s["hue"])
+            faded = tuple(int(c * 0.55 + 255 * 0.45) for c in color)
+            outline = tuple(max(0, c - 40) for c in faded)
+            self._draw_shape(draw, s["kind"], x, y, size, faded, outline, 0.0, trace=1.0, t=t)
 
     def _draw_focus_segment(
         self, draw: ImageDraw.ImageDraw, img: Image.Image, seg: dict, t: float, anim: float,
     ) -> None:
+        del anim
         assert self.palette is not None
         local = segment_local(t, seg)
-        scale = smooth_pop(min(1.0, local * 2.5))
-        trace = ease_in_out_cubic(min(1.0, local * 1.8))
+        shot = kids_shot(local)
+        scale = shot.letter_scale
+        trace = ease_in_out_cubic(min(1.0, local / 0.35))
         shape = str(seg.get("shape", "circle"))
-        cx, cy = self.width // 2, int(self.height * 0.36)
-        bounce = int(np.sin(t * anim * np.pi * 3) * 10 * scale)
-        size = int(min(self.width, self.height) * 0.17 * scale)
+        cx, cy = self.layout.letter_xy
+        bounce = int(shot.bounce)
+        size = int(min(self.layout.stage.w, self.layout.stage.h) * 0.36 * max(0.35, scale))
 
+        draw_stage_card(draw, self.layout)
+        if scale < 0.08:
+            return
         if seg.get("color_rgb"):
             color = tuple(int(c) for c in seg["color_rgb"])
         else:
-            color = self.palette.as_uint8((hash(shape) % 100) / 100.0 + t * 0.12)
+            color = self.palette.as_uint8((hash(shape) % 100) / 100.0)
         outline = tuple(max(0, c - 45) for c in color)
-        self._draw_shape(draw, shape, cx, cy + bounce, size, color, outline, t * anim * 30, trace=trace, glow=True, t=t)
-
-        label = str(seg.get("color_name") or shape.title())
-        label_scale = smooth_pop(min(1.0, local * 1.5), elastic=False)
-        if label_scale > 0.1:
-            draw.text((cx, int(self.height * 0.56)), label, font=self.font_lg, fill=(40, 50, 70), anchor="mm")
-
-        word = str(seg.get("word") or "")
-        if self.show_word_images and word and scale > 0.3:
-            paste_word_image(
-                img, word,
-                (int(self.width * 0.72), int(self.height * 0.40)),
-                max(90, int(min(self.width, self.height) * 0.17 * scale)),
-                bounce=int(4 * np.sin(t * 4)),
+        self._draw_shape(draw, shape, cx, cy + bounce, size, color, outline, 0.0, trace=trace, glow=True, t=t)
+        if self.show_word_images and (seg.get("image_path") or seg.get("word")) and shot.picture_scale > 0.12:
+            paste_picture(img, seg, self.layout, bounce=0 if shot.hold_still else int(kids_breathe(t, 3.0) * scale))
+        else:
+            draw_picture_card(draw, self.layout)
+            pcx, pcy = self.layout.picture_xy
+            ps = max(16, int(min(self.layout.picture.w, self.layout.picture.h) * 0.22))
+            draw.ellipse((pcx - ps, pcy - ps, pcx + ps, pcy + ps), fill=color, outline=outline, width=4)
+            paint_text(
+                draw, (pcx, pcy + ps + 18),
+                str(seg.get("color_name") or shape).upper(),
+                self.font_sm, (40, 50, 70), anchor="mm",
+                max_width=self.layout.picture.w - 16,
             )
-
-        if local > 0.75 and seg.get("engage"):
-            draw_prompt_bubble(draw, str(seg["engage"]), cx, int(self.height * 0.26), self.font_xs, (local - 0.75) * 4)
 
     def _draw_count_segment(
         self, draw: ImageDraw.ImageDraw, img: Image.Image, seg: dict, t: float, anim: float,
     ) -> None:
+        del anim
         assert self.palette is not None
-        count = int(seg.get("count", 3))
+        count = max(1, int(seg.get("count", 3)))
         shape = str(seg.get("shape", "circle"))
         local = segment_local(t, seg)
-        reveal = int(min(count, np.floor(ease_in_out_cubic(local) * count * 1.15) + 1))
+        reveal = int(min(count, np.floor(ease_in_out_cubic(min(1.0, local / 0.75)) * count) + 1))
         cols = min(count, 5)
         rows = int(np.ceil(count / cols))
-        cell_w = self.width * 0.7 / cols
-        cell_h = self.height * 0.32 / max(1, rows)
-        start_x = self.width * 0.15
-        start_y = self.height * 0.20
+        stage = self.layout.stage
+        draw_stage_card(draw, self.layout)
+        if seg.get("math_op"):
+            eq = f"{int(seg.get('math_left', 0))} {seg.get('math_op')} {int(seg.get('math_right', 0))} = {count}"
+            paint_text(
+                draw,
+                (stage.cx, stage.y0 + max(16, int(stage.h * 0.12))),
+                eq,
+                self.font_md,
+                (40, 55, 90),
+                anchor="mm",
+                max_width=stage.w - 24,
+            )
+            cell_h = (stage.h * 0.78) / max(1, rows)
+            y_off = int(stage.h * 0.18)
+        else:
+            cell_h = stage.h / max(1, rows)
+            y_off = 0
+        cell_w = stage.w / cols
 
         for i in range(reveal):
             row, col = divmod(i, cols)
-            cx = int(start_x + (col + 0.5) * cell_w)
-            cy = int(start_y + (row + 0.5) * cell_h)
-            item_local = ease_in_out_cubic(float(np.clip(local * count * 1.15 - i, 0, 1)))
-            pop = smooth_pop(item_local)
-            size = int(min(cell_w, cell_h) * 0.30 * pop)
-            color = self.palette.as_uint8((i * 0.12 + t * 0.08) % 1.0)
+            cx = int(stage.x0 + (col + 0.5) * cell_w)
+            cy = int(stage.y0 + y_off + (row + 0.5) * cell_h)
+            item_local = kids_pop(float(np.clip((local * count * 0.85) - i, 0, 1)))
+            pop = item_local
+            size = int(min(cell_w, cell_h) * 0.32 * max(0.05, pop))
+            color = self.palette.as_uint8((i * 0.12) % 1.0)
             outline = tuple(max(0, c - 40) for c in color)
-            self._draw_shape(draw, shape, cx, cy, size, color, outline, t * 25 + i * 15, trace=item_local, glow=(i == reveal - 1), t=t)
+            self._draw_shape(draw, shape, cx, cy, size, color, outline, 0.0, trace=max(0.15, pop), glow=(i == reveal - 1), t=t)
 
-        num_scale = smooth_pop(min(1.0, local * 2))
-        if num_scale > 0.1:
-            draw.text((self.width // 2, int(self.height * 0.60)), str(count), font=self.font_lg, fill=(50, 70, 100), anchor="mm")
-
-        word = str(seg.get("word") or "")
-        if self.show_word_images and word and local > 0.4:
-            paste_word_image(img, word, (int(self.width * 0.78), int(self.height * 0.34)), max(80, int(min(self.width, self.height) * 0.14)))
+        if self.show_word_images and (seg.get("image_path") or seg.get("word")) and kids_shot(local).picture_scale > 0.12:
+            paste_picture(img, seg, self.layout)
+        else:
+            draw_picture_card(draw, self.layout)
+            paint_text(
+                draw, self.layout.picture_xy, str(count),
+                self.font_lg, (50, 70, 100), anchor="mm",
+            )
 
     def _draw_stickers(self, draw: ImageDraw.ImageDraw, img: Image.Image, seg: dict, t: float, anim: float) -> None:
+        del anim
         assert self.palette is not None
         letter = str(seg.get("letter", "A"))
+        word = str(seg.get("word") or letter).upper()
         local = segment_local(t, seg)
-        scale = smooth_pop(min(1.0, local * 2.5))
-        cx, cy = self.width // 2, int(self.height * 0.35)
+        shot = kids_shot(local)
+        scale = shot.letter_scale
+        cx, cy = self.layout.letter_xy
         color = self.palette.as_uint8((hash(letter) % 100) / 100.0)
-        size = int(min(self.width, self.height) * 0.13 * scale)
-        draw_glow_ring(draw, cx, cy, size, color, t)
-        draw.ellipse((cx - size, cy - size, cx + size, cy + size), fill=(*color, 200), outline=(50, 60, 80), width=4)
-        draw.text((cx, cy), letter, font=self.font_lg, fill=(255, 255, 255), anchor="mm")
+        size = int(min(self.layout.stage.w, self.layout.stage.h) * 0.22 * max(0.2, scale))
+        draw_stage_card(draw, self.layout)
+        draw_glow_ring(draw, cx, cy, size, color, t, layers=2)
+        if len(word) > 1:
+            paint_text(
+                draw, (cx, cy), word, self.font_lg, color, anchor="mm",
+                max_width=self.layout.stage.w - 36,
+            )
+            spelled = "  ".join(word)
+            paint_text(
+                draw, (cx, cy + int(size * 0.85)), spelled, self.font_sm, (40, 55, 80),
+                anchor="mm", max_width=self.layout.stage.w - 28,
+            )
+        else:
+            draw.ellipse((cx - size, cy - size, cx + size, cy + size), fill=(*color, 200), outline=(50, 60, 80), width=4)
+            paint_text(draw, (cx, cy), letter, self.font_lg, (255, 255, 255), anchor="mm")
 
-        shape = str(seg.get("shape", "star"))
-        sx, sy = int(self.width * 0.24), int(self.height * 0.40)
-        self._draw_shape(draw, shape, sx, sy, int(size * 0.8), color, (40, 50, 70), t * 40, trace=ease_in_out_cubic(local), t=t)
-
-        word = str(seg.get("word") or "")
-        if self.show_word_images and word and scale > 0.25:
-            paste_word_image(img, word, (int(self.width * 0.72), int(self.height * 0.37)), max(100, int(min(self.width, self.height) * 0.18 * scale)))
+        if self.show_word_images and (seg.get("image_path") or seg.get("word")) and shot.picture_scale > 0.12:
+            paste_picture(img, seg, self.layout)
+        else:
+            draw_picture_card(draw, self.layout)
+            paint_text(draw, self.layout.picture_xy, letter, self.font_lg, color, anchor="mm")
 
     def render_frame(self, frame_number: int, total_frames: int) -> np.ndarray:
         assert self.palette is not None
@@ -295,29 +325,24 @@ class KidsDoodleEngine(ArtEngine):
         else:
             self._draw_focus_segment(draw, img, seg, t, anim)
 
-        draw = ImageDraw.Draw(img.convert("RGB"))
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        draw = ImageDraw.Draw(img)
         if self.show_captions:
-            draw_title_banner(draw, self.width, self.height, self.lesson_title, self.font_sm)
-            draw_learning_strip(
-                draw, img, seg, self.width, self.height,
-                {"md": self.font_md, "sm": self.font_sm},
-                show_word_image=self.show_word_images, t=t,
+            shot = kids_shot(segment_local(t, seg))
+            draw_kids_chrome(
+                draw, img, self.layout,
+                title=self.lesson_title,
+                seg=seg,
+                segments=self.segments,
+                fonts={"md": self.font_md, "sm": self.font_sm},
+                t=t,
+                closing=self.closing,
+                accent=self.palette.as_uint8(0.5),
+                confetti_seeds=self.confetti_seeds,
+                caption_alpha=shot.caption_alpha,
+                celebrate=shot.celebrate,
             )
-            draw_engagement_overlay(draw, seg, self.width, self.height, self.font_xs, t, self.confetti_seeds)
-            draw_progress_dots(draw, seg, self.segments, self.width, self.height, self.palette.as_uint8(0.5), t=t)
-            if t > 0.92:
-                draw_closing_banner(draw, self.width, self.height, self.closing, self.font_sm)
-                draw_confetti(draw, self.width, self.height, t, self.confetti_seeds, intensity=1.0)
 
-        arr = np.array(img.convert("RGB"), dtype=np.uint8, copy=True)
-        for i in range(3):
-            color = self.palette.as_uint8((0.15 * i + t) % 1.0)
-            pts = []
-            for k in range(16):
-                pts.append([
-                    int((0.08 + 0.84 * k / 15) * self.width),
-                    int(self.height * (0.71 + 0.025 * i) + 8 * np.sin(k * 0.7 + t * 5 + i * 0.5)),
-                ])
-            cv2.polylines(arr, [np.array(pts, dtype=np.int32)], False, color, 2, lineType=cv2.LINE_AA)
-        blur = cv2.GaussianBlur(arr, (0, 0), sigmaX=0.8)
-        return cv2.addWeighted(arr, 0.92, blur, 0.08, 0)
+        arr = np.array(img, dtype=np.uint8, copy=True)
+        return arr

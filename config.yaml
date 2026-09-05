@@ -40,39 +40,21 @@ database:
 engines:
   - particles
   - galaxy
-  - fractal
-  - mandelbrot
-  - julia
-  - kaleidoscope
-  - geometric
-  - flow_field
   - waves
   - tunnel
-  - voronoi
-  - reaction_diffusion
-  - noise
-  - l_system
-  - neon_lines
-  - particle_trails
   - alphabet_cartoon
   - hand_art
   - kids_doodles
+  - infographic_explainer
 
 styles:
   - abstract
   - cosmic
-  - neon
   - minimal
-  - psychedelic
-  - geometric
   - organic
-  - dreamlike
   - digital
-  - mathematical
-  - futuristic
-  - calm
-  - chaotic
   - playful
+  - documentary
 
 # Primary export targets: Full HD + 4K (and common variants)
 resolutions:
@@ -84,3 +66,15 @@ resolutions:
   - "2160x2160"   # 4K square
 
 fps_options: [24, 30, 60]
+
+# Optional OpenRouter creative advisor (suggestions only — render stays offline).
+# Put OPENROUTER_API_KEY in root `.env` (gitignored). Prefer --curate over per_video.
+ai:
+  enabled: false
+  provider: openrouter
+  base_url: "https://openrouter.ai/api/v1"
+  model: "openai/gpt-4o-mini"
+  timeout_sec: 20
+  cache_dir: "./data/ai_cache"
+  catalog_dir: "./data/ai_catalogs"
+  per_video: false

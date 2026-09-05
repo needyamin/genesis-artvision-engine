@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from app.art.base import ArtEngine, register_engine
+from app.art.edit_brain import beat_pulse, director_time, style_motion
 
 
 @register_engine
@@ -25,12 +26,14 @@ class WavesEngine(ArtEngine):
 
     def render_frame(self, frame_number: int, total_frames: int) -> np.ndarray:
         assert self.palette is not None
-        t = frame_number / max(1, total_frames)
+        t_lin = frame_number / max(1, total_frames)
+        t = director_time(t_lin, str(self.params.get("edit_feel") or "cinematic"))
+        sm = style_motion(str(self.params.get("style") or "organic"))
         anim = float(self.params.get("animation_speed", 1.0))
-        speed = float(self.params.get("speed", 1.0)) * anim
+        speed = float(self.params.get("speed", 1.0)) * anim * 0.65 * sm.speed
         freq = float(self.params.get("frequency", 1.5))
         amp = float(self.params.get("amplitude", 0.2))
-        distortion = float(self.params.get("distortion", 0.3))
+        distortion = float(self.params.get("distortion", 0.3)) * 0.55 * sm.noise
 
         field = np.zeros((self.height, self.width), dtype=np.float32)
         for i in range(self.layers_n):
@@ -39,7 +42,7 @@ class WavesEngine(ArtEngine):
             phase = self.phases[i] + t * speed * np.pi * 2 * (0.5 + self.freqs[i])
             wave = np.sin((self.xx * dx + self.yy * dy) * np.pi * 2 * freq * self.freqs[i] + phase)
             if distortion > 0:
-                warp = np.sin(self.yy * 8 + t * 4) * distortion * 0.05
+                warp = np.sin(self.yy * 6 + t * 2.2) * distortion * 0.04
                 wave = np.sin(
                     (self.xx * dx + warp + self.yy * dy) * np.pi * 2 * freq * self.freqs[i] + phase
                 )
@@ -51,5 +54,10 @@ class WavesEngine(ArtEngine):
         # Soft highlight ridges
         ridges = (np.abs(np.gradient(norm)[0]) + np.abs(np.gradient(norm)[1]))
         ridges = ridges / (ridges.max() + 1e-6)
-        rgb = rgb + ridges[..., None] * 0.25
-        return self._to_uint8(rgb * float(self.params.get("contrast", 0.85)))
+        pulse = beat_pulse(
+            t_lin,
+            float(self.params.get("bpm") or 90.0),
+            float(self.params.get("_duration") or 30.0),
+        )
+        rgb = rgb + ridges[..., None] * (sm.ridge + sm.pulse * pulse * 0.12)
+        return self._to_uint8(rgb * float(self.params.get("contrast", 0.85)) * (0.92 + 0.08 * sm.glow))

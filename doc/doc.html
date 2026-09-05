@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Genesis Artvision Engine — Complete Guide · ANSNEW TECH</title>
+  <style>
+    :root {
+      --bg: #0c1018;
+      --bg-2: #131a26;
+      --card: #171f2e;
+      --line: rgba(255,255,255,.08);
+      --text: #e8eef8;
+      --muted: #9aa8bd;
+      --accent: #7eb6ff;
+      --gold: #e2c07a;
+      --ok: #7dce9a;
+      --max: 46rem;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font: 18px/1.65 "Segoe UI", "Candara", "Calibri", system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #1a2a48 0%, transparent 50%),
+        radial-gradient(900px 500px at 100% 0%, #2a1d12 0%, transparent 45%),
+        var(--bg);
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header.hero {
+      padding: 3.5rem 1.5rem 2.5rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .wrap { max-width: 72rem; margin: 0 auto; }
+    .brand {
+      font-size: .78rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--gold);
+      font-weight: 700;
+    }
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.1rem);
+      line-height: 1.15;
+      margin: .4rem 0 1rem;
+      font-weight: 700;
+    }
+    .lede {
+      max-width: 40rem;
+      font-size: 1.15rem;
+      color: var(--muted);
+      margin: 0;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 16rem 1fr;
+      gap: 2rem;
+      padding: 2rem 1.5rem 5rem;
+      max-width: 72rem;
+      margin: 0 auto;
+      align-items: start;
+    }
+    nav.toc {
+      position: sticky;
+      top: 1rem;
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1rem 1rem 1.1rem;
+    }
+    nav.toc h2 {
+      font-size: .72rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin: 0 0 .6rem;
+    }
+    nav.toc a {
+      display: block;
+      color: var(--muted);
+      font-size: .86rem;
+      padding: .22rem 0;
+      text-decoration: none;
+    }
+    nav.toc a:hover { color: var(--text); }
+    article { max-width: var(--max); }
+    article h2 {
+      font-size: 1.55rem;
+      margin: 2.4rem 0 .8rem;
+      padding-top: .4rem;
+    }
+    article h3 {
+      font-size: 1.12rem;
+      margin: 1.6rem 0 .5rem;
+      color: var(--gold);
+    }
+    p { margin: 0 0 1rem; }
+    ul, ol { margin: 0 0 1.1rem; padding-left: 1.2rem; color: var(--text); }
+    li { margin: .28rem 0; }
+    code, kbd {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: .86em;
+      background: #0a0e14;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: .08em .38em;
+    }
+    pre {
+      background: #0a0e14;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+      font-size: .82rem;
+      line-height: 1.5;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .92rem;
+      margin: 0 0 1.3rem;
+    }
+    th, td {
+      text-align: left;
+      padding: .55rem .6rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th { color: var(--gold); font-weight: 600; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+      margin: 0 0 1.1rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .8rem;
+      margin: 0 0 1.2rem;
+    }
+    .pill {
+      display: inline-block;
+      font-size: .72rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--ok);
+      border: 1px solid rgba(125,206,154,.35);
+      border-radius: 999px;
+      padding: .15rem .55rem;
+      margin-bottom: .8rem;
+    }
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 1.5rem;
+      color: var(--muted);
+      font-size: .9rem;
+      text-align: center;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      nav.toc { position: static; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="brand">ANSNEW TECH</div>
+      <h1>Genesis Artvision Engine</h1>
+      <p class="lede">A complete guide to the offline procedural art video factory: how it invents a film from a seed, what each engine teaches or paints, and how voice, pictures, and FFmpeg stay on your computer.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Contents">
+      <h2>Contents</h2>
+      <a href="#idea">The idea</a>
+      <a href="#who">Who it is for</a>
+      <a href="#pipeline">How a video is born</a>
+      <a href="#engines">Eight engines</a>
+      <a href="#kids">Kids learning</a>
+      <a href="#docsci">Science explainers</a>
+      <a href="#look">Styles and finishing</a>
+      <a href="#audio">Sound and voice</a>
+      <a href="#ai">Optional AI advisor</a>
+      <a href="#use">Using the app</a>
+      <a href="#seeds">Seeds and history</a>
+      <a href="#arch">Architecture</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#extend">Extending it</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+
+    <article>
+      <p class="pill">Product article</p>
+      <p>Genesis Artvision Engine is desktop software from <strong>ANSNEW TECH</strong>. You do not import clips, write a script, or pick a beat of music. You press Generate. The factory rolls a seed, chooses an art engine and a visual style, paints every frame procedurally, writes a soundtrack, and pipes the result into FFmpeg as an MP4.</p>
+      <p>That is the whole promise: <em>invention, not assembly</em>. The same program can emit a cosmic particle field, a slow alphabet lesson a child can repeat, or a documentary HUD about a telescope. Nothing in the finished file is downloaded as stock video. Pictures for kids words are drawn locally. Voice is Windows text-to-speech when it is available, otherwise an offline voice.</p>
+
+      <h2 id="idea">The idea</h2>
+      <p>Most “AI video” tools send your prompt to a cloud model and wait for pixels to come back. Genesis is the opposite shape. It is a <strong>random art video factory</strong>. Random does not mean chaotic. It means a deterministic integer seed expands into a full project specification: resolution, duration, palette, motion, lesson plan, camera, grade, and audio profile.</p>
+      <p>If you run the same seed with the same duration, resolution, and frame rate, you get the same film. History in the GUI stores that seed so you can reprint a video the way a print shop reprints a plate.</p>
+      <p>The factory is useful in three jobs at once:</p>
+      <ul>
+        <li><strong>Abstract motion design</strong> — particles, galaxies, waves, and tunnels that feel authored, not like a screen saver.</li>
+        <li><strong>Kids learning videos</strong> — alphabet, dictionary (spell a word and say what it means), and real-world add / take-away math, spoken slowly.</li>
+        <li><strong>Science explainers</strong> — infographic HUD pieces with a calm documentary narrator.</li>
+      </ul>
+
+      <h2 id="who">Who it is for</h2>
+      <p>Creators who need a stream of original, license-clean shorts without a footage library. Parents and teachers who want simple on-screen lessons. Anyone who wants a documentary-style science clip without filming. Developers who want a local pipeline they can extend with a new engine instead of a new API key.</p>
+      <p>It is not a timeline NLE. You do not trim clips on a track. You choose (or randomize) an engine and a style, set length and size, and let the edit brain pace the shots.</p>
+
+      <h2 id="pipeline">How a video is born</h2>
+      <p>Every generate pass follows the same spine.</p>
+      <ol>
+        <li><strong>Seed.</strong> A new integer, or one you type, or one replayed from History.</li>
+        <li><strong>Randomizer.</strong> Builds a <code>ProjectSpec</code>: engine, style, palette, per-engine parameters, duration, fps, resolution.</li>
+        <li><strong>Optional advisor.</strong> If OpenRouter is enabled, a JSON creative direction may bias theme, briefs, and on-screen titles. It never paints the movie in the cloud.</li>
+        <li><strong>Lesson or topic.</strong> Kids engines build a shared lesson for picture and voice. The explainer builds a science topic the same way.</li>
+        <li><strong>Offline pictures.</strong> Word cards and suggested scenes are drawn with Pillow on disk.</li>
+        <li><strong>Audio.</strong> Procedural music, kids narration, or documentary speech, written as WAV.</li>
+        <li><strong>Render.</strong> Each frame is drawn, graded, faded, then piped as raw RGB into FFmpeg with the WAV.</li>
+        <li><strong>Output.</strong> An MP4 (and usually a thumbnail JPEG) lands in <code>output/</code>. Temp files are cleaned on success.</li>
+      </ol>
+      <p>The GUI stays responsive because generate runs on a worker thread. Progress shows phase, seed, engine, and — when the advisor is on — what the offline illustrator is drawing.</p>
+
+      <h2 id="engines">Eight engines</h2>
+      <p>Engines are the “what am I looking at.” Styles are the “how it is graded and moved.” Kids engines ignore a wild cosmic grade so letters stay readable.</p>
+
+      <h3>Abstract</h3>
+      <table>
+        <thead><tr><th>Engine</th><th>GUI name</th><th>Character</th></tr></thead>
+        <tbody>
+          <tr><td><code>particles</code></td><td>Particle Universe</td><td>Fields of points, gravity, trails, attraction.</td></tr>
+          <tr><td><code>galaxy</code></td><td>Galaxy / Starfield</td><td>Arms, core glow, drift, star density.</td></tr>
+          <tr><td><code>waves</code></td><td>Waves / Liquid</td><td>Layered frequencies, amplitude, distortion.</td></tr>
+          <tr><td><code>tunnel</code></td><td>Tunnel</td><td>Rings, spokes, twist, pulse through depth.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Kids learning</h3>
+      <table>
+        <thead><tr><th>Engine</th><th>GUI name</th><th>Character</th></tr></thead>
+        <tbody>
+          <tr><td><code>alphabet_cartoon</code></td><td>ABC Educational</td><td>Big letter, word picture, caption; math shows an equation; spell mode reveals one letter at a time.</td></tr>
+          <tr><td><code>kids_doodles</code></td><td>Shapes &amp; Colors</td><td>Count objects for math, show the word for dictionary, shapes and colors for play.</td></tr>
+          <tr><td><code>hand_art</code></td><td>Draw Along</td><td>Step-by-step doodle with a meaning line so drawing still teaches a word.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Documentary</h3>
+      <p><code>infographic_explainer</code> (Science &amp; Fact Explainer) paints atmospheres, schematics, HUD cards, and metric counters. Topics come from an offline knowledge pack (astronomy, earth science, technology, biology). The soundtrack is a calm narrator, not a kids sing-song.</p>
+
+      <h2 id="kids">Kids learning, in detail</h2>
+      <p>Kids videos are meant to teach something a child can say back. Three lesson families share the same slow voice:</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="margin-top:0">Alphabet</h3>
+          <p>One letter, its sound, a word that starts with that letter, and a one-sentence meaning. Example: “Letter A. A says /a/ as in apple. A is for apple. An apple is a fruit you can eat. Say apple.”</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">Dictionary</h3>
+          <p>Spell the word out loud with pauses (C. A. T.), then the meaning, then “Say cat.” The picture is that word, not a random first letter from other words.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Real-world math</h3>
+        <p>Tiny add and take-away stories from daily life: apples in a basket, birds in a tree, cars on the road. The voice counts the answer slowly (1. 2. 3.) while the screen shows the equation and the objects. It is not abstract algebra.</p>
+      </div>
+      <p>A hard rule holds the lesson together: <strong>letter, word, caption, voice, and picture must agree</strong>. The app will not show B, say “M is for moon,” and draw a sun on the same beat. Optional AI suggestions may flavor a picture brief only when they still name the teaching word.</p>
+      <p>Voice is slow on purpose. Kids SSML uses a slow rate, pauses after single letters and numbers, and keeps one teaching line plus a short cheer so a child can follow. On Windows, SAPI (typically a female voice when installed) is cached under <code>data/ai_voice/</code>. Elsewhere, a procedural voice is used.</p>
+      <p>Layout is a broadcast kids grid: title, stage, picture card, caption. The letter lives in the stage. Captions are not stacked on top of the glyph. Shot grammar is anticipate → pop → hold → picture → hold → celebrate, so nothing flashes every frame.</p>
+
+      <h2 id="docsci">Science explainers</h2>
+      <p>The infographic engine is the flagship “serious” look. A topic is chosen (or randomized), then segmented like a short documentary: headline, body, schematic, HUD metrics. Audio is a separate documentary path — slower, lower pitch than kids TTS, mixed over a restrained bed.</p>
+      <p>Use style <strong>documentary</strong> or leave Random; that style prefers the explainer. You still get procedural pictures, not licensed B-roll.</p>
+
+      <h2 id="look">Styles and finishing</h2>
+      <p>Seven named styles bias glow, speed, contrast, density, and which engines they like:</p>
+      <ul>
+        <li><strong>abstract</strong> — open field, any engine.</li>
+        <li><strong>cosmic</strong> — galaxy, particles, tunnel; slower drift, more glow.</li>
+        <li><strong>minimal</strong> — quieter density; waves and tunnels.</li>
+        <li><strong>organic</strong> — waves and galaxies, softer contrast.</li>
+        <li><strong>digital</strong> — faster, higher contrast particles and tunnels.</li>
+        <li><strong>playful</strong> — prefers the three kids engines.</li>
+        <li><strong>documentary</strong> — prefers the explainer, then space-like abstracts.</li>
+      </ul>
+      <p>After the engine draws a frame, a shared finish pass can apply grade, vignette, grain, a gentle push-in, and master fades. Kids engines lock to a broadcast grade: static camera, no grain soup, readable type. The “edit brain” gives abstract engines director time and beat pulse so they do not feel like a looped GIF.</p>
+
+      <h2 id="audio">Sound and voice</h2>
+      <p>There is no requirement to drop MP3s into a folder. The factory writes WAV at 44.1 kHz.</p>
+      <ul>
+        <li><strong>Abstract:</strong> procedural pads, pulses, and optional mix with files in <code>assets/music</code> if you add them.</li>
+        <li><strong>Kids:</strong> soft pad, letter chimes, and slow narration aligned to lesson segments.</li>
+        <li><strong>Documentary:</strong> calmer speech mixed under a quieter bed.</li>
+      </ul>
+      <p>If audio generation fails, the video can still encode silent. Check <code>logs/</code>. Disable audio in the GUI or with <code>--no-audio</code> when you only need picture.</p>
+
+      <h2 id="ai">Optional AI advisor</h2>
+      <p>OpenRouter is <strong>off by default</strong>. When you turn it on, it is a creative director, not a renderer. It returns JSON: possible lesson theme, focus words, short voice lines, image briefs, overlay titles. Then:</p>
+      <ol>
+        <li>The <strong>offline illustrator</strong> paints those briefs with Pillow into <code>data/ai_scenes/</code>.</li>
+        <li>Kids lock still rejects a brief or voice that teaches the wrong word.</li>
+        <li>Same seed hits a disk cache under <code>data/ai_cache/</code> so you are not billed twice for a reprint.</li>
+      </ol>
+      <p>Put <code>OPENROUTER_API_KEY</code> in a root <code>.env</code> copied from <code>.env.example</code>. Never commit <code>.env</code>. Cheapest path: run <code>python main.py --curate</code> once to grow <code>data/ai_catalogs/education.json</code>, then generate offline forever from that catalog.</p>
+      <p>Per-video advisor: GUI Extras checkbox, or <code>python main.py --generate --ai --engine alphabet_cartoon</code>. If a model returns HTTP 402, add credits or stay on <code>openai/gpt-4o-mini</code> in <code>config.yaml</code>.</p>
+
+      <h2 id="use">Using the app</h2>
+      <h3>Requirements</h3>
+      <ul>
+        <li>Python 3.11 or newer (tested on 3.14).</li>
+        <li>FFmpeg on your PATH (<code>winget install Gyan.FFmpeg</code> on Windows).</li>
+        <li><code>pip install -r requirements.txt</code> (NumPy, Pillow, OpenCV headless, PySide6, PyYAML, pytest).</li>
+      </ul>
+      <h3>GUI</h3>
+      <pre>python main.py</pre>
+      <p>The window opens maximized. Set duration, resolution (Full HD and 4K, landscape, vertical, square), fps, count, engine, and style. Random is a valid choice for engine and style. Press <strong>GENERATE</strong>. Preview updates during encode. History lists finished jobs; you can re-generate from seed. Clean Temporary Files if <code>temp/</code> grows.</p>
+      <h3>CLI</h3>
+      <pre>python main.py --generate
+python main.py --generate --count 10
+python main.py --generate --engine galaxy --style cosmic --duration 30
+python main.py --generate --seed 847293847 --resolution 1920x1080 --fps 30
+python main.py --test</pre>
+      <p><code>--test</code> is a 320×180, 10 fps, 3 second smoke render. <code>--curate</code> only expands education catalogs. <code>--output</code> can redirect the folder.</p>
+      <h3>Config</h3>
+      <p><code>config.yaml</code> holds default resolution, duration options, bitrate (8M Full HD, 35M 4K), engine list, style list, and the AI block. GUI choices override for that run. Logs go to <code>logs/</code>. SQLite history is <code>data/history.db</code>.</p>
+
+      <h2 id="seeds">Seeds and history</h2>
+      <p>A seed is the identity of a film. The randomizer uses NumPy’s Generator so the same seed expands the same spec. Filename pattern is along the lines of <code>art_&lt;seed&gt;_&lt;date&gt;.mp4</code>. The database stores seed plus parameter JSON for reprint.</p>
+      <p>Changing duration or resolution with the same seed is a different movie: timing and layout scale. To clone a hit, match seed, engine (if forced), resolution, fps, and duration.</p>
+
+      <h2 id="arch">Architecture</h2>
+      <pre>main.py                 GUI or CLI entry, loads .env
+config.yaml             defaults
+app/art/                engines, kids lessons, edit brain, word cards
+app/audio/              kids TTS, documentary, procedural music
+app/ai/                 advisor, schemas, offline realize, curate
+app/core/               randomizer, VideoFactory
+app/gui/                PySide6 window, settings, progress
+app/video/              FFmpeg pipe, grade, overlays
+app/database/           history
+output/  temp/  data/   products, scratch, caches
+tests/                  pytest</pre>
+      <p>Each engine subclasses <code>ArtEngine</code>, registers with <code>@register_engine</code>, and returns uint8 RGB frames. The factory owns the order: enrich spec → build lesson/topic → realize local images → audio → render. Kids video and kids audio share one <code>education_lesson</code> dict so they cannot drift apart.</p>
+
+      <h2 id="privacy">Privacy and what stays local</h2>
+      <ul>
+        <li>No account. No upload of frames.</li>
+        <li>Kids illustrations: local Pillow, cached as PNG.</li>
+        <li>Kids/documentary voice: Windows SAPI or offline synth — not a paid cloud TTS API.</li>
+        <li>OpenRouter, if you enable it, sends a text prompt about the spec and receives JSON. It does not receive your MP4.</li>
+        <li>API keys live in <code>.env</code>, which is gitignored.</li>
+      </ul>
+
+      <h2 id="extend">Extending it</h2>
+      <p>To add an engine: new file under <code>app/art/</code>, subclass <code>ArtEngine</code>, implement <code>render_frame</code>, register it, import it from <code>ensure_engines_loaded()</code>, list it in <code>config.yaml</code> and <code>ENGINE_PARAM_SPECS</code>. That is the same path particles and alphabet already use.</p>
+      <p>Kids content lives in <code>app/art/education_content.py</code> (words, meanings, math stories, voice lines). Word drawings live in <code>app/art/word_images.py</code>. Keep letter and word aligned if you add a theme.</p>
+      <p>Tests: <code>python -m pytest tests/ -q</code>. A fast picture check: <code>python main.py --test</code>.</p>
+
+      <h2 id="faq">FAQ</h2>
+      <p><strong>Why does an old kids MP4 still sound wrong?</strong> Files already in <code>output/</code> are not rewritten. Generate again after the teaching-lock work. Same seed with the new code will rebuild voice and pictures correctly.</p>
+      <p><strong>Why is kids speech slow?</strong> So a child can copy letters and counts. Adult documentary speech stays medium.</p>
+      <p><strong>Can it make photoreal people?</strong> No. The offline illustrator is a stylized painter. That is intentional: no stock, no face models.</p>
+      <p><strong>Linux / macOS?</strong> FFmpeg + Python should render. Kids SAPI is Windows; other platforms use the procedural voice fallback.</p>
+      <p><strong>Where do I start?</strong> Install FFmpeg, <code>pip install -r requirements.txt</code>, <code>python main.py</code>, press Generate. For a learning clip, set engine to ABC Educational or Shapes &amp; Colors and style to Playful.</p>
+      <p>Shorter install notes also live in <a href="README.md">README.md</a>.</p>
+    </article>
+  </div>
+
+  <footer>
+    © ANSNEW TECH — Genesis Artvision Engine. Offline procedural art video factory.
+  </footer>
+</body>
+</html>

@@ -31,40 +31,22 @@ RESOLUTION_LABELS: dict[str, str] = {
 ENGINE_LABELS: dict[str, str] = {
     "particles": "Particle Universe",
     "galaxy": "Galaxy / Starfield",
-    "fractal": "Fractal",
-    "mandelbrot": "Mandelbrot",
-    "julia": "Julia Set",
-    "kaleidoscope": "Kaleidoscope",
-    "geometric": "Geometric Shapes",
-    "flow_field": "Flow Field",
     "waves": "Waves / Liquid",
     "tunnel": "Tunnel",
-    "voronoi": "Voronoi",
-    "reaction_diffusion": "Reaction-Diffusion",
-    "noise": "Noise Abstract",
-    "l_system": "L-System Plants",
-    "neon_lines": "Neon Lines",
-    "particle_trails": "Particle Trails",
     "alphabet_cartoon": "ABC Educational (Kids Learning)",
     "hand_art": "Draw Along (Hand Art Lessons)",
     "kids_doodles": "Shapes & Colors (Kids Learning)",
+    "infographic_explainer": "Science & Fact Explainer (Documentary HUD)",
 }
 
 STYLE_LABELS: dict[str, str] = {
     "abstract": "Abstract",
     "cosmic": "Cosmic",
-    "neon": "Neon",
     "minimal": "Minimal",
-    "psychedelic": "Psychedelic",
-    "geometric": "Geometric",
     "organic": "Organic",
-    "dreamlike": "Dreamlike",
     "digital": "Digital",
-    "mathematical": "Mathematical",
-    "futuristic": "Futuristic",
-    "calm": "Calm",
-    "chaotic": "Chaotic",
     "playful": "Playful (Kids)",
+    "documentary": "Documentary HUD",
 }
 
 
@@ -230,8 +212,26 @@ class SettingsPanel(QWidget):
         self.random_anim = QCheckBox()
         self.random_anim.setChecked(True)
         self.random_anim.hide()
+
+        ai_cfg = self.config.get("ai") or {}
+        self.ai_advisor = QCheckBox("AI creative advisor (OpenRouter)")
+        self.ai_advisor.setChecked(bool(ai_cfg.get("enabled") and ai_cfg.get("per_video")))
+        self.ai_advisor.setToolTip(
+            "Optional: ask OpenRouter for JSON creative direction before each render. "
+            "Suggestions appear live in the Progress panel (AI creative director). "
+            "The GUI stays responsive while waiting. "
+            "Put OPENROUTER_API_KEY in a root .env file (see .env.example). "
+            "Prefer CLI --curate for cheaper offline catalog expansion."
+        )
+        self.ai_status = QLabel("")
+        self.ai_status.setWordWrap(True)
+        self._refresh_ai_status()
+        self.ai_advisor.toggled.connect(lambda _=False: self._refresh_ai_status())
+
         eg.addWidget(self.proc_audio)
         eg.addWidget(self.gen_thumb)
+        eg.addWidget(self.ai_advisor)
+        eg.addWidget(self.ai_status)
         eg.addStretch(1)
 
         root.addWidget(video_box, 0, 0)
@@ -250,6 +250,20 @@ class SettingsPanel(QWidget):
 
     def _on_unlimited(self, on: bool) -> None:
         self.count.setEnabled(not on)
+
+    def _refresh_ai_status(self) -> None:
+        from app.ai.client import ENV_API_KEY, has_api_key
+
+        if not self.ai_advisor.isChecked():
+            self.ai_status.setText("AI off — fully offline.")
+            return
+        if has_api_key(self.config):
+            model = (self.config.get("ai") or {}).get("model", "openrouter")
+            self.ai_status.setText(
+                f"Key found · {model}. Suggestions show in Progress while generating."
+            )
+        else:
+            self.ai_status.setText(f"Missing {ENV_API_KEY} — add it to root .env")
 
     def values(self) -> dict[str, Any]:
         eng_val = self.art_mode.currentData()
@@ -275,4 +289,6 @@ class SettingsPanel(QWidget):
             "unlimited": self.unlimited.isChecked(),
             "audio_enabled": self.proc_audio.isChecked(),
             "thumbnail": self.gen_thumb.isChecked(),
+            "ai_enabled": self.ai_advisor.isChecked(),
+            "ai_per_video": self.ai_advisor.isChecked(),
         }

@@ -12,10 +12,12 @@ from typing import Callable
 import numpy as np
 
 from app.art.base import ArtEngine, get_engine
+from app.art.education_content import KIDS_EDUCATION_ENGINES
 from app.core.randomizer import ProjectSpec
 from app.utils.logger import get_logger
-from app.video.effects import apply_effects
+from app.video.effects import apply_editorial_finish, apply_effects
 from app.video.ffmpeg import FFmpegError, build_raw_video_encode_cmd, find_ffmpeg
+from app.video.overlays import apply_ai_overlays
 
 logger = get_logger("renderer")
 
@@ -126,6 +128,17 @@ class FrameRenderer:
 
                 frame = engine.render_frame(i, total)
                 frame = apply_effects(frame, spec.params)
+                if spec.engine not in KIDS_EDUCATION_ENGINES:
+                    frame = apply_ai_overlays(frame, spec, i, total)
+                frame = apply_editorial_finish(
+                    frame,
+                    spec.params,
+                    i,
+                    total,
+                    duration=spec.duration,
+                    fps=spec.fps,
+                    seed=spec.seed,
+                )
                 if frame.dtype != np.uint8 or frame.shape != (spec.height, spec.width, 3):
                     raise RuntimeError(
                         f"Engine {spec.engine} returned invalid frame shape {getattr(frame, 'shape', None)}"

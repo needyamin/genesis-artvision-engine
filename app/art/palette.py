@@ -79,20 +79,13 @@ def generate_palette(rng: np.random.Generator, style: str = "abstract") -> Palet
 
     # Style-biased lightness / saturation
     style_bias = {
-        "neon": (0.85, 0.55, 0.12),
         "cosmic": (0.7, 0.45, 0.06),
         "minimal": (0.25, 0.55, 0.82),
-        "psychedelic": (0.95, 0.55, 0.15),
-        "calm": (0.4, 0.55, 0.2),
-        "chaotic": (0.9, 0.5, 0.08),
         "organic": (0.55, 0.45, 0.15),
-        "dreamlike": (0.5, 0.65, 0.18),
-        "futuristic": (0.75, 0.5, 0.08),
-        "mathematical": (0.45, 0.5, 0.1),
         "digital": (0.8, 0.45, 0.05),
-        "geometric": (0.6, 0.5, 0.1),
         "abstract": (0.65, 0.5, 0.1),
         "playful": (0.85, 0.62, 0.88),
+        "documentary": (0.75, 0.52, 0.05),
     }
     sat, light, bg_l = style_bias.get(style, (0.65, 0.5, 0.1))
     sat = float(np.clip(sat + rng.uniform(-0.1, 0.1), 0.2, 0.98))

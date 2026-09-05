@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QThread, Signal, Slot
+from PySide6.QtCore import Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from app.core.generator import VideoFactory
 from app.core.project import clean_all_temp
+from app.gui.branding import apply_app_icon, app_logo_path
 from app.gui.preview_panel import PreviewPanel
 from app.gui.progress_panel import ProgressPanel
 from app.gui.settings_panel import SettingsPanel
@@ -49,6 +50,13 @@ class GenerateWorker(QThread):
 
     def run(self) -> None:
         try:
+            ai = self.factory.config.setdefault("ai", {})
+            if self.options.get("ai_enabled"):
+                ai["enabled"] = True
+                ai["per_video"] = True
+            else:
+                # Keep catalogs usable; only disable per-video advisor for this run
+                ai["per_video"] = False
             results = self.factory.generate_batch(
                 count=self.options.get("count", 1),
                 unlimited=self.options.get("unlimited", False),
@@ -77,6 +85,7 @@ class HistoryDialog(QDialog):
         super().__init__(parent)
         self.factory = factory
         self.setWindowTitle("Video history — Genesis Artvision Engine")
+        apply_app_icon(self)
         self.resize(920, 500)
         layout = QVBoxLayout(self)
         hint = QLabel("Select a video, then open it or recreate it with the same seed.")
@@ -189,7 +198,13 @@ class MainWindow(QMainWindow):
         self._video_index = 0
         self._video_total: int | None = 1
         self._last_output: Path | None = None
+        self._ai_wait_started = 0.0
+        self._ai_wait_message = ""
+        self._ai_timer = QTimer(self)
+        self._ai_timer.setInterval(400)
+        self._ai_timer.timeout.connect(self._tick_ai_wait)
         self.setWindowTitle("Genesis Artvision Engine — ANSNEW TECH")
+        apply_app_icon(self)
         self.resize(1200, 820)
         self.setMinimumSize(980, 700)
         self.setStyleSheet(APP_STYLE)
@@ -337,19 +352,28 @@ class MainWindow(QMainWindow):
         self.progress.reset()
         count_txt = "unlimited" if opts["unlimited"] else str(opts["count"])
         self.progress.update_progress(status=f"Starting… ({count_txt})")
+        if opts.get("ai_enabled"):
+            self.progress.set_ai_log(
+                "AI creative advisor is on.\n"
+                "Suggestions will appear here as soon as they arrive.\n"
+                "The window stays responsive — you can Pause or Stop anytime."
+            )
+        else:
+            self.progress.set_ai_log("AI advisor off — this video uses the offline randomizer.")
         self.preview.clear()
         self._set_running(True)
         self.statusBar().showMessage("Generating…")
 
         self.worker = GenerateWorker(self.factory, opts)
-        self.worker.progress.connect(self.on_progress)
-        self.worker.finished_batch.connect(self.on_finished)
-        self.worker.failed.connect(self.on_failed)
+        self.worker.progress.connect(self.on_progress, Qt.ConnectionType.QueuedConnection)
+        self.worker.finished_batch.connect(self.on_finished, Qt.ConnectionType.QueuedConnection)
+        self.worker.failed.connect(self.on_failed, Qt.ConnectionType.QueuedConnection)
         self.worker.start()
 
     @Slot()
     def stop_generate(self) -> None:
         self.factory.scheduler.stop()
+        self._stop_ai_wait()
         self.progress.update_progress(status="Stopping… finishing safely")
         self.statusBar().showMessage("Stopping…")
 
@@ -378,6 +402,9 @@ class MainWindow(QMainWindow):
             total_txt = "∞" if self._video_total is None else str(self._video_total)
             self.progress.update_progress(video=f"{self._video_index} of {total_txt}")
             return
+        if phase == "ai":
+            self._on_ai_progress(payload)
+            return
         if phase in {"start", "render", "audio"}:
             engine = payload.get("engine", "?")
             style = payload.get("style", "?")
@@ -403,15 +430,78 @@ class MainWindow(QMainWindow):
             if preview is not None:
                 self.preview.show_frame(preview)
 
+    def _on_ai_progress(self, payload: dict) -> None:
+        status = str(payload.get("ai_status") or "")
+        message = str(payload.get("message") or "")
+        detail = str(payload.get("detail") or "")
+        engine = payload.get("engine", "?")
+        style = payload.get("style", "?")
+        seed = payload.get("seed", "?")
+        self.progress.update_progress(current=f"{engine}  ·  {style}", seed=str(seed))
+        if status == "asking":
+            self._start_ai_wait(message)
+            self.progress.set_ai_log(message)
+            self.progress.update_progress(status="AI creative advisor thinking…")
+            self.statusBar().showMessage("AI advisor working…")
+            return
+        self._stop_ai_wait()
+        if status in {"realize", "image", "text"}:
+            self.progress.append_ai_log(detail or message)
+            self.progress.update_progress(status=(message or "Building images & text…")[:90])
+            self.statusBar().showMessage((message or "Building images & text…")[:90])
+            return
+        if status == "cache":
+            self.progress.set_ai_log(detail or message)
+            self.progress.update_progress(status="AI applied (cached)")
+            self.statusBar().showMessage("AI applied (cached)")
+        elif status == "applied":
+            self.progress.set_ai_log(detail or message)
+            self.progress.update_progress(status="AI applied")
+            self.statusBar().showMessage("AI applied")
+        else:
+            self.progress.set_ai_log(message or "AI skipped.")
+            short = (message.split("\n")[0] if message else "AI skipped")[:90]
+            self.progress.update_progress(status=short)
+            self.statusBar().showMessage(short)
+
+    def _start_ai_wait(self, message: str) -> None:
+        self._ai_wait_message = message
+        self._ai_wait_started = time.perf_counter()
+        if not self._ai_timer.isActive():
+            self._ai_timer.start()
+
+    def _stop_ai_wait(self) -> None:
+        if self._ai_timer.isActive():
+            self._ai_timer.stop()
+
+    def _tick_ai_wait(self) -> None:
+        elapsed = time.perf_counter() - self._ai_wait_started
+        dots = "." * (1 + int(elapsed) % 3)
+        self.progress.update_progress(status=f"AI creative advisor thinking{dots} {elapsed:.0f}s")
+        self.statusBar().showMessage(f"AI advisor working… {elapsed:.0f}s")
+        self.progress.set_ai_log(
+            f"{self._ai_wait_message}\n\n"
+            f"Waiting {elapsed:.0f}s — window stays responsive. Pause or Stop still work."
+        )
+
     @Slot(list)
     def on_finished(self, results: list) -> None:
+        self._stop_ai_wait()
         self._set_running(False)
         ok = sum(1 for r in results if r.success)
+        ai_note = ""
+        if results:
+            last_spec = results[-1].spec
+            if last_spec is not None and last_spec.params.get("ai_applied"):
+                ai_note = " · AI applied"
+                summary = last_spec.params.get("ai_summary")
+                if summary:
+                    self.progress.set_ai_log(str(summary))
         self.progress.update_progress(
             percent=100 if ok else self.progress.bar.value(),
-            status=f"Finished — {ok} of {len(results)} video(s) saved",
+            status=f"Finished — {ok} of {len(results)} video(s) saved{ai_note}",
         )
-        self.statusBar().showMessage(f"Done · {ok}/{len(results)} succeeded")
+        self.statusBar().showMessage(f"Done · {ok}/{len(results)} succeeded{ai_note}")
         if not results:
             return
         last = results[-1]
@@ -441,6 +531,7 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def on_failed(self, message: str) -> None:
+        self._stop_ai_wait()
         self._set_running(False)
         self.progress.update_progress(status="Something went wrong")
         self.statusBar().showMessage("Failed")
@@ -470,10 +561,14 @@ class MainWindow(QMainWindow):
         self._batch_started = time.perf_counter()
         self._set_running(True)
         self.progress.update_progress(status=f"Recreating seed {seed}…")
+        if opts.get("ai_enabled"):
+            self.progress.set_ai_log(
+                f"Recreating seed {seed}.\nAI suggestions will appear here if the advisor is on."
+            )
         self.worker = GenerateWorker(self.factory, opts)
-        self.worker.progress.connect(self.on_progress)
-        self.worker.finished_batch.connect(self.on_finished)
-        self.worker.failed.connect(self.on_failed)
+        self.worker.progress.connect(self.on_progress, Qt.ConnectionType.QueuedConnection)
+        self.worker.finished_batch.connect(self.on_finished, Qt.ConnectionType.QueuedConnection)
+        self.worker.failed.connect(self.on_failed, Qt.ConnectionType.QueuedConnection)
         self.worker.start()
 
     @Slot()
@@ -483,12 +578,23 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Temp files cleaned", f"Removed {n} temporary item(s).")
 
     def _about(self) -> None:
-        QMessageBox.information(
-            self,
-            "About",
-            "Genesis Artvision Engine\n"
+        box = QMessageBox(self)
+        box.setWindowTitle("About")
+        apply_app_icon(box)
+        box.setIconPixmap(
+            QPixmap(str(app_logo_path())).scaled(
+                96,
+                96,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+        box.setText("Genesis Artvision Engine")
+        box.setInformativeText(
             "by ANSNEW TECH\n\n"
             "Offline procedural art video generator.\n"
-            "No cloud APIs. No AI models required.\n\n"
-            "Just press Generate — the engine decides the rest.",
+            "Optional OpenRouter advisor suggests creative direction only.\n"
+            "Frames, audio, and FFmpeg stay local.\n\n"
+            "Just press Generate — the engine decides the rest."
         )
+        box.exec()

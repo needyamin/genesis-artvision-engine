@@ -2,41 +2,23 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from app.art.base import ArtEngine, register_engine
 from app.art.education_anim import (
-    draw_confetti,
     draw_glow_ring,
-    draw_prompt_bubble,
-    draw_segment_counter,
+    kids_breathe,
+    kids_pop,
     segment_local,
-    smooth_pop,
 )
+from app.art.edit_brain import kids_shot
 from app.art.education_content import build_education_lesson
-from app.art.word_images import ensure_word_image, paste_word_image
-
-
-def _load_font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
-    candidates = [
-        "C:/Windows/Fonts/comicbd.ttf",
-        "C:/Windows/Fonts/comic.ttf",
-        "C:/Windows/Fonts/arialbd.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/System/Library/Fonts/Supplemental/Comic Sans MS.ttf",
-    ]
-    for path in candidates:
-        if Path(path).exists():
-            try:
-                return ImageFont.truetype(path, size=size)
-            except OSError:
-                continue
-    return ImageFont.load_default()
+from app.art.education_ui import draw_kids_chrome, draw_picture_card, draw_stage_card, paste_picture
+from app.art.fonts import load_font, paint_text
+from app.art.kids_layout import chart_cell_center, kids_layout
+from app.art.word_images import ensure_word_image
 
 
 def _blend(
@@ -51,26 +33,26 @@ def _draw_bubble_letter(
     draw: ImageDraw.ImageDraw,
     text: str,
     xy: tuple[int, int],
-    font: ImageFont.ImageFont,
+    font,
     fill: tuple[int, int, int],
     *,
     outline: tuple[int, int, int] = (35, 45, 70),
     outline_w: int = 6,
 ) -> None:
     x, y = xy
-    draw.text((x + outline_w, y + outline_w), text, font=font, fill=(40, 45, 60), anchor="mm")
+    ow = max(2, int(outline_w))
     for dx, dy in (
-        (-outline_w, 0),
-        (outline_w, 0),
-        (0, -outline_w),
-        (0, outline_w),
-        (-outline_w, -outline_w),
-        (-outline_w, outline_w),
-        (outline_w, -outline_w),
-        (outline_w, outline_w),
+        (-ow, 0),
+        (ow, 0),
+        (0, -ow),
+        (0, ow),
+        (-ow, -ow),
+        (-ow, ow),
+        (ow, -ow),
+        (ow, ow),
     ):
-        draw.text((x + dx, y + dy), text, font=font, fill=outline, anchor="mm")
-    draw.text((x, y), text, font=font, fill=fill, anchor="mm")
+        paint_text(draw, (x + dx, y + dy), text, font, outline, anchor="mm")
+    paint_text(draw, (x, y), text, font, fill, anchor="mm")
 
 
 def _draw_motif(
@@ -171,11 +153,10 @@ class AlphabetCartoonEngine(ArtEngine):
             self.lesson = self.params["education_lesson"]
         else:
             self.lesson = build_education_lesson(self.seed, duration, params=self.params)
-        # Allow param overrides for theme/mode if forced
-        if self.params.get("mode") in {"chart", "focus", "parade", "lesson", "spell"}:
-            self.mode = str(self.params["mode"])
-        else:
-            self.mode = str(self.lesson.get("visual_mode", "lesson"))
+        # Lesson plan owns the on-screen mode. Randomizer "spell" must not
+        # draw spelling blanks over a math or letter lesson.
+        vis = str(self.lesson.get("visual_mode") or "lesson")
+        self.mode = vis if vis in {"chart", "focus", "parade", "lesson", "spell"} else "lesson"
 
         self.letters = list(self.lesson["letters"])
         self.spell_word = str(self.lesson.get("spell_word") or "")
@@ -185,30 +166,32 @@ class AlphabetCartoonEngine(ArtEngine):
         self.lesson_title = str(self.lesson.get("title") or "Let's Learn!")
         self.closing = str(self.lesson.get("closing") or "Great job!")
 
+        self.layout = kids_layout(self.width, self.height)
         self.cols = max(4, min(int(self.params.get("columns", 7)), 9))
         self.rows = max(1, int(np.ceil(len(self.letters) / self.cols)))
         n = max(1, len(self.letters))
         self.phases = self.rng.random(n).astype(np.float32)
         self.hues = self.rng.random(n).astype(np.float32)
-        self.bounce = float(self.params.get("bounce", 0.75))
-        self.wobble = float(self.params.get("wobble", 0.55))
+        self.bounce = float(min(0.4, max(0.15, self.params.get("bounce", 0.28))))
+        self.wobble = float(min(0.18, max(0.0, self.params.get("wobble", 0.08))))
+        self.easing = "smooth"
+        self.camera_feel = "static"
         self.show_motifs = bool(self.params.get("show_motifs", True))
         self.show_lowercase = bool(self.params.get("show_lowercase", True))
-        self.bg_style = str(
-            self.params.get("background", self.rng.choice(["notebook", "sky", "classroom", "pastel"]))
-        )
-        self.sparkle = float(self.params.get("sparkle", 0.7))
-        self.pop_in = bool(self.params.get("pop_in", True))
+        bg = str(self.params.get("background") or "pastel")
+        self.bg_style = bg if bg in {"notebook", "sky", "classroom", "pastel"} else "pastel"
+        self.sparkle = float(min(0.2, max(0.0, self.params.get("sparkle", 0.12))))
+        self.pop_in = True
 
-        base = min(self.width, self.height)
-        self.font_size = max(36, int(base * float(self.params.get("letter_scale", 0.13))))
-        self.font = _load_font(self.font_size)
-        self.font_lg = _load_font(max(64, int(base * 0.28)))
-        self.font_md = _load_font(max(28, int(base * 0.075)))
-        self.font_sm = _load_font(max(18, int(base * 0.042)))
-        self.outline_w = max(4, self.font_size // 10)
+        cell = min(self.layout.stage.w / self.cols, self.layout.stage.h / max(1, self.rows))
+        self.font_size = max(28, int(cell * 0.52))
+        self.font = load_font(self.font_size)
+        self.font_lg = load_font(self.layout.hero_font)
+        self.font_md = load_font(self.layout.md_font)
+        self.font_sm = load_font(self.layout.sm_font)
+        self.outline_w = max(4, self.layout.hero_font // 14)
 
-        sp = int(40 + 80 * self.sparkle)
+        sp = int(6 + 14 * self.sparkle)
         self.sparks_x = self.rng.random(sp).astype(np.float32)
         self.sparks_y = self.rng.random(sp).astype(np.float32)
         self.sparks_r = self.rng.uniform(1.5, 4.5, sp).astype(np.float32)
@@ -244,7 +227,7 @@ class AlphabetCartoonEngine(ArtEngine):
     def _pop_scale(self, local_t: float) -> float:
         if not self.pop_in:
             return 1.0
-        return smooth_pop(local_t, elastic=True)
+        return kids_pop(local_t)
 
     def _make_background(self, t: float) -> Image.Image:
         assert self.palette is not None
@@ -264,9 +247,9 @@ class AlphabetCartoonEngine(ArtEngine):
                 arr[y] = top * (1 - f) + bot * f
             img = Image.fromarray(arr.astype(np.uint8))
             draw = ImageDraw.Draw(img)
-            for i in range(5):
-                cx = int(((i * 0.22 + t * 0.05) % 1.2) * self.width)
-                cy = int(self.height * (0.15 + 0.08 * (i % 3)))
+            for i in range(3):
+                cx = int(((i * 0.28 + t * 0.02) % 1.15) * self.width)
+                cy = int(self.height * (0.14 + 0.07 * (i % 2)))
                 for ox, oy, r in ((-30, 0, 36), (0, -12, 42), (34, 0, 34)):
                     draw.ellipse((cx + ox - r, cy + oy - r, cx + ox + r, cy + oy + r), fill=(255, 255, 255))
         elif self.bg_style == "classroom":
@@ -278,23 +261,23 @@ class AlphabetCartoonEngine(ArtEngine):
         else:
             arr = np.full((self.height, self.width, 3), 240, dtype=np.float32)
             yy, xx = np.ogrid[: self.height, : self.width]
-            for i in range(6):
-                c = np.array(self.palette.as_uint8((i * 0.15 + t * 0.1) % 1.0), dtype=np.float32)
-                cx = ((0.2 + 0.15 * i + 0.05 * np.sin(t * 3 + i)) % 1.0) * self.width
-                cy = ((0.25 + 0.12 * i) % 1.0) * self.height
+            for i in range(3):
+                c = np.array(self.palette.as_uint8((i * 0.22) % 1.0), dtype=np.float32)
+                cx = (0.28 + 0.22 * i) * self.width
+                cy = (0.28 + 0.18 * (i % 2)) * self.height
                 dist = ((xx - cx) ** 2 + (yy - cy) ** 2) / (min(self.width, self.height) ** 2)
-                mask = np.exp(-dist * 6)[..., None]
-                arr = arr * (1 - 0.35 * mask) + c * (0.35 * mask)
+                mask = np.exp(-dist * 5)[..., None]
+                arr = arr * (1 - 0.22 * mask) + c * (0.22 * mask)
             img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
             draw = ImageDraw.Draw(img)
 
         if self.sparkle > 0.1:
             for i in range(len(self.sparks_x)):
-                tw = 0.4 + 0.6 * abs(np.sin((t + self.sparks_ph[i]) * np.pi * 6))
-                if tw < 0.35:
+                tw = 0.45 + 0.55 * abs(np.sin((t + self.sparks_ph[i]) * np.pi * 1.4))
+                if tw < 0.4:
                     continue
-                x = int((self.sparks_x[i] + 0.02 * np.sin(t * 2 + i)) % 1.0 * self.width)
-                y = int((self.sparks_y[i] + t * 0.08 * (0.5 + self.sparks_ph[i])) % 1.0 * self.height)
+                x = int(self.sparks_x[i] * self.width)
+                y = int(self.sparks_y[i] * self.height * 0.9)
                 r = int(self.sparks_r[i] * tw)
                 col = self.palette.as_uint8(float((self.sparks_ph[i] + t) % 1.0))
                 draw.ellipse((x - r, y - r, x + r, y + r), fill=col)
@@ -320,62 +303,62 @@ class AlphabetCartoonEngine(ArtEngine):
             self._draw_chart(draw, img, t, anim, seg)
             draw = ImageDraw.Draw(img)
 
-        # Title + educational captions
-        self._draw_hud(draw, t, seg)
+        self._draw_hud(draw, img, t, seg)
 
         arr = np.array(img, dtype=np.uint8, copy=True)
-        blur = cv2.GaussianBlur(arr, (0, 0), sigmaX=1.2)
-        return cv2.addWeighted(arr, 0.90, blur, 0.10, 0)
+        blur = cv2.GaussianBlur(arr, (0, 0), sigmaX=0.4)
+        return cv2.addWeighted(arr, 0.97, blur, 0.03, 0)
 
-    def _draw_hud(self, draw: ImageDraw.ImageDraw, t: float, seg: dict) -> None:
-        title = self.lesson_title
-        banner_y = int(self.height * 0.032)
-        draw.rounded_rectangle(
-            (self.width // 2 - 220, banner_y - 4, self.width // 2 + 220, banner_y + 32),
-            radius=14,
-            fill=(255, 255, 255),
-            outline=(60, 80, 110),
-            width=3,
+    def _draw_hud(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, seg: dict) -> None:
+        hud = dict(seg)
+        shot = kids_shot(segment_local(t, seg))
+        if 0.6 < shot.local < 0.85 and seg.get("quiz"):
+            hud["caption"] = str(seg["quiz"])
+        draw_kids_chrome(
+            draw,
+            img,
+            self.layout,
+            title=self.lesson_title,
+            seg=hud,
+            segments=self.segments,
+            fonts={"md": self.font_md, "sm": self.font_sm},
+            t=t,
+            closing=self.closing,
+            accent=self.palette.as_uint8(0.4) if self.palette is not None else (80, 120, 180),
+            confetti_seeds=self.confetti_seeds,
+            caption_alpha=shot.caption_alpha,
+            celebrate=shot.celebrate,
         )
-        draw.text((self.width // 2, banner_y + 14), title, font=self.font_sm, fill=(40, 60, 90), anchor="mm")
-        draw_segment_counter(draw, int(seg.get("index", 0)), len(self.segments), self.width, self.height, self.font_sm)
 
-        local = segment_local(t, seg)
-        if local > 0.78 and seg.get("celebrate"):
-            draw_prompt_bubble(
-                draw, str(seg["celebrate"]),
-                self.width // 2, int(self.height * 0.66),
-                self.font_sm, (local - 0.78) / 0.22,
-                fill=(255, 245, 200), accent=(255, 160, 50),
+    def _paste_picture(self, draw: ImageDraw.ImageDraw, img: Image.Image, seg: dict, t: float, scale: float = 1.0) -> None:
+        shot = kids_shot(segment_local(t, seg))
+        pic = shot.picture_scale
+        if pic < 0.08:
+            return
+        bounce = 0 if shot.hold_still else int(kids_breathe(t, 3.0) * pic)
+        if self.show_word_images:
+            paste_picture(img, seg, self.layout, bounce=bounce)
+            return
+        if self.show_motifs:
+            draw_picture_card(draw, self.layout)
+            color = self.palette.as_uint8(0.4) if self.palette is not None else (80, 140, 200)
+            _draw_motif(
+                draw,
+                str(seg.get("motif") or seg.get("word") or "STAR"),
+                self.layout.picture.cx,
+                self.layout.picture.cy + bounce,
+                max(18, int(min(self.layout.picture.w, self.layout.picture.h) * 0.28 * pic)),
+                color,
+                t,
             )
-            draw_confetti(draw, self.width, self.height, t, self.confetti_seeds, intensity=(local - 0.78) / 0.22)
 
-        if t > 0.92:
-            draw.rounded_rectangle(
-                (self.width // 2 - 200, int(self.height * 0.88), self.width // 2 + 200, int(self.height * 0.96)),
-                radius=12,
-                fill=(255, 250, 230),
-                outline=(80, 100, 60),
-                width=3,
-            )
-            draw.text(
-                (self.width // 2, int(self.height * 0.92)),
-                self.closing,
-                font=self.font_sm,
-                fill=(50, 90, 50),
-                anchor="mm",
-            )
-            draw_confetti(draw, self.width, self.height, t, self.confetti_seeds, intensity=1.0)
-
-    def _cell_center(self, i: int) -> tuple[float, float]:
-        row = i // self.cols
-        col = i % self.cols
-        cell_w = self.width / (self.cols + 0.6)
-        cell_h = (self.height * 0.72) / (self.rows + 0.5)
-        return 0.3 * cell_w + (col + 0.5) * cell_w, self.height * 0.14 + (row + 0.45) * cell_h
+    def _cell_center(self, i: int) -> tuple[int, int]:
+        return chart_cell_center(self.layout, i, len(self.letters), self.cols)
 
     def _draw_chart(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float, seg: dict) -> None:
         assert self.palette is not None
+        draw_stage_card(draw, self.layout)
+        shot = kids_shot(segment_local(t, seg))
         n = len(self.letters)
         active = int(seg.get("index", 0))
         for i, letter in enumerate(self.letters):
@@ -384,180 +367,119 @@ class AlphabetCartoonEngine(ArtEngine):
             if scale < 0.08:
                 continue
             cx, cy = self._cell_center(i)
-            bounce = np.sin((t * anim * 4 + self.phases[i % len(self.phases)]) * np.pi * 2) * self.bounce * self.font_size * 0.12
-            wob = np.sin((t * anim * 3 + self.phases[i % len(self.phases)] * 4) * np.pi) * self.wobble * 10
-            x, y = int(cx + wob), int(cy + bounce)
-            color = self.palette.as_uint8(float((self.hues[i % len(self.hues)] + t * 0.15) % 1.0))
+            amp = self.bounce * self.font_size * 0.04
+            bounce = 0.0
+            if i == active and not shot.hold_still:
+                bounce = kids_breathe(t, amp)
+            x, y = int(cx), int(cy + bounce)
+            color = self.palette.as_uint8(float(self.hues[i % len(self.hues)]))
             if i == active:
                 draw.ellipse((x - self.font_size, y - self.font_size, x + self.font_size, y + self.font_size), outline=color, width=4)
             ow = max(3, int(self.outline_w * scale))
             _draw_bubble_letter(draw, letter, (x, y), self.font, color, outline_w=ow)
             if self.show_lowercase and letter.isalpha():
-                draw.text(
+                paint_text(
+                    draw,
                     (x + self.font_size // 2, y + self.font_size // 3),
                     letter.lower(),
-                    font=self.font_sm,
-                    fill=_blend(color, 0.2, (30, 40, 60)),
+                    self.font_sm,
+                    _blend(color, 0.2, (30, 40, 60)),
                     anchor="mm",
                 )
 
-        # Bottom learning strip for highlighted letter
-        self._learning_strip(draw, img, seg)
-
-    def _learning_strip(self, draw: ImageDraw.ImageDraw, img: Image.Image, seg: dict) -> None:
-        assert self.palette is not None
-        y0 = int(self.height * 0.78)
-        draw.rounded_rectangle(
-            (int(self.width * 0.06), y0, int(self.width * 0.94), int(self.height * 0.97)),
-            radius=16,
-            fill=(255, 255, 255),
-            outline=(70, 90, 120),
-            width=3,
-        )
-        color = self.palette.as_uint8(0.4)
-        draw.text((int(self.width * 0.12), y0 + 28), str(seg.get("line", "")), font=self.font_md, fill=(40, 55, 80), anchor="lm")
-        draw.text((int(self.width * 0.12), y0 + 70), str(seg.get("phonics", "")), font=self.font_sm, fill=(60, 80, 110), anchor="lm")
-        draw.text((int(self.width * 0.12), y0 + 100), str(seg.get("fact", "")), font=self.font_sm, fill=(80, 100, 70), anchor="lm")
-        tip = str(seg.get("tip", ""))
-        draw.text((int(self.width * 0.62), y0 + 100), tip, font=self.font_sm, fill=(120, 70, 40), anchor="lm")
-        word = str(seg.get("word", seg.get("motif", "STAR")))
-        if self.show_word_images:
-            paste_word_image(
-                img,
-                word,
-                (int(self.width * 0.86), y0 + int((self.height * 0.97 - y0) / 2)),
-                max(72, int(min(self.width, self.height) * 0.12)),
-            )
-        elif self.show_motifs:
-            _draw_motif(
-                draw,
-                str(seg.get("motif", word)),
-                int(self.width * 0.82),
-                y0 + 55,
-                max(18, int(min(self.width, self.height) * 0.055)),
-                color,
-                float(seg.get("t0", 0)),
-            )
+        self._paste_picture(draw, img, seg, t)
 
     def _draw_lesson(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float, seg: dict) -> None:
+        del anim
         assert self.palette is not None
         letter = str(seg.get("letter", "A"))
-        word = str(seg.get("word", "FUN"))
-        local = segment_local(t, seg)
-        scale = self._pop_scale(min(1.0, local * 2.2))
-        color = self.palette.as_uint8((hash(letter) % 100) / 100.0 + t * 0.2)
-        x, y = self.width // 2, int(self.height * 0.34)
-        bounce = int(np.sin(t * anim * np.pi * 4) * 14 * scale)
+        shot = kids_shot(segment_local(t, seg))
+        color = self.palette.as_uint8((hash(letter) % 100) / 100.0)
+        x, y = self.layout.letter_xy
+        bounce = int(shot.bounce)
 
-        overlay = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
-        od = ImageDraw.Draw(overlay)
-        rw, rh = int(self.width * 0.5), int(self.height * 0.42)
-        od.rounded_rectangle(
-            (x - rw // 2, y - rh // 2, x + rw // 2, y + rh // 2),
-            radius=28,
-            fill=(255, 255, 255, 215),
-            outline=(50, 70, 100, 255),
-            width=4,
-        )
-        composed = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
-        img.paste(composed)
-        draw = ImageDraw.Draw(img, "RGBA")
-        draw_glow_ring(draw, x, y + bounce, int(self.font_size * 0.9 * scale), color, t)
-        draw = ImageDraw.Draw(img.convert("RGB"))
-
-        _draw_bubble_letter(draw, letter, (x, y + bounce), self.font_lg, color, outline_w=max(8, self.outline_w + 4))
-        if self.show_lowercase and letter.isalpha():
-            draw.text(
-                (x + int(self.width * 0.12), y + bounce),
-                letter.lower(),
-                font=self.font_md,
-                fill=_blend(color, 0.15, (40, 50, 70)),
-                anchor="mm",
-            )
-
-        draw.text((x, int(self.height * 0.55)), f"{letter} is for {word}", font=self.font_md, fill=(40, 55, 80), anchor="mm")
-        draw.text((x, int(self.height * 0.61)), str(seg.get("phonics", "")), font=self.font_sm, fill=(70, 90, 120), anchor="mm")
-        draw.text((x - int(self.width * 0.18), int(self.height * 0.68)), str(seg.get("fact", "")), font=self.font_sm, fill=(60, 110, 70), anchor="mm")
-        draw.text((x - int(self.width * 0.18), int(self.height * 0.74)), str(seg.get("tip", "")), font=self.font_sm, fill=(140, 80, 40), anchor="mm")
-
-        # Related word image (offline illustrated card)
-        if self.show_word_images:
-            paste_word_image(
-                img,
-                word,
-                (int(self.width * 0.72), int(self.height * 0.78)),
-                max(110, int(min(self.width, self.height) * 0.22 * scale)),
-                bounce=int(6 * np.sin(t * 4)),
-            )
-        elif self.show_motifs:
-            _draw_motif(
-                draw,
-                str(seg.get("motif", word)),
-                x,
-                int(self.height * 0.86),
-                int(min(self.width, self.height) * 0.09 * scale),
-                color,
-                t,
-            )
-
-        # Progress dots with pulse
-        dots = len(self.segments)
-        for i in range(dots):
-            dx = int(self.width * 0.15 + i * (self.width * 0.7) / max(1, dots - 1))
-            active = i == int(seg.get("index", 0))
-            pulse = 1.0 + 0.3 * np.sin(t * np.pi * 8) if active else 1.0
-            r = int((7 if active else 3) * pulse)
-            fill = color if active else (180, 190, 200)
-            draw.ellipse((dx - r, int(self.height * 0.95) - r, dx + r, int(self.height * 0.95) + r), fill=fill)
-
-        if local > 0.55 and seg.get("quiz"):
-            draw_prompt_bubble(draw, str(seg["quiz"]), x, int(self.height * 0.48), self.font_sm, (local - 0.55) * 2.5)
+        draw_stage_card(draw, self.layout)
+        if shot.letter_scale < 0.08:
+            return
+        if seg.get("math_op"):
+            eq = str(seg.get("overlay_text") or seg.get("line") or "")
+            if eq:
+                paint_text(
+                    draw,
+                    (self.layout.stage.cx, self.layout.stage.y0 + max(16, int(self.layout.stage.h * 0.14))),
+                    eq,
+                    self.font_md,
+                    (40, 55, 90),
+                    anchor="mm",
+                    max_width=self.layout.stage.w - 28,
+                )
+            y = y + int(self.layout.stage.h * 0.05)
+        glow_r = int(min(self.layout.stage.w, self.layout.stage.h) * 0.22 * shot.letter_scale)
+        draw_glow_ring(draw, x, y + bounce, glow_r, color, t, layers=1)
+        _draw_bubble_letter(draw, letter, (x, y + bounce), self.font_lg, color, outline_w=max(6, self.outline_w))
+        self._paste_picture(draw, img, seg, t, shot.picture_scale)
 
     def _draw_parade(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float) -> None:
+        del anim
         assert self.palette is not None
         n = len(self.letters)
-        gy = int(self.height * 0.70)
-        draw.line((0, gy, self.width, gy), fill=(120, 160, 100), width=6)
+        stage = self.layout.stage
+        draw_stage_card(draw, self.layout)
+        gy = stage.y1 - max(10, stage.h // 12)
+        draw.line((stage.x0 + 16, gy, stage.x1 - 16, gy), fill=(120, 160, 100), width=6)
         for i, letter in enumerate(self.letters):
-            progress = (t * anim * 0.28 + i / max(1, n)) % 1.0
-            x = int(progress * (self.width + 160) - 80)
-            bounce = abs(np.sin(progress * np.pi * 8 + self.phases[i % len(self.phases)])) * 28 * self.bounce
-            y = int(self.height * 0.45 - bounce)
-            color = self.palette.as_uint8(float((self.hues[i % len(self.hues)] + t) % 1.0))
-            _draw_bubble_letter(draw, letter, (x, y), self.font, color, outline_w=self.outline_w)
-        self._learning_strip(draw, img, self._segment_at(t))
+            progress = (t * 0.09 + i / max(1, n)) % 1.0
+            x = int(stage.x0 + progress * stage.w)
+            bounce = abs(np.sin(progress * np.pi)) * 5 * self.bounce
+            y = int(stage.cy - bounce)
+            color = self.palette.as_uint8(float(self.hues[i % len(self.hues)]))
+            _draw_bubble_letter(draw, letter, (x, y), self.font, color, outline_w=max(3, self.outline_w // 2))
+        self._paste_picture(draw, img, self._segment_at(t), t)
 
     def _draw_spell(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, anim: float, seg: dict) -> None:
+        del anim
         assert self.palette is not None
-        word = self.spell_word or "".join(self.letters)
-        n = len(self.letters)
-        reveal = int(min(n, np.floor(t * n * 1.15) + 1))
-        total_w = n * self.font_size * 1.15
-        start_x = self.width / 2 - total_w / 2
-        for i, letter in enumerate(self.letters[:reveal]):
-            local = float(np.clip((t * n * 1.15) - i, 0, 1))
-            scale = self._pop_scale(local)
-            x = int(start_x + (i + 0.5) * self.font_size * 1.15)
-            y = int(self.height * 0.38 + np.sin((t * anim * 3 + i) * np.pi) * 12 * self.bounce)
-            color = self.palette.as_uint8(float((self.hues[i % len(self.hues)] + t * 0.2) % 1.0))
-            _draw_bubble_letter(draw, letter, (x, y), self.font, color, outline_w=max(3, int(self.outline_w * scale)))
-        draw.text((self.width // 2, int(self.height * 0.55)), f"Spell: {word}", font=self.font_md, fill=(50, 70, 100), anchor="mm")
-        draw.text((self.width // 2, int(self.height * 0.62)), str(seg.get("phonics", "")), font=self.font_sm, fill=(70, 90, 120), anchor="mm")
-        draw.text((self.width // 2, int(self.height * 0.68)), str(seg.get("fact", "")), font=self.font_sm, fill=(60, 110, 70), anchor="mm")
-        if self.show_word_images:
-            paste_word_image(
-                img,
-                word,
-                (self.width // 2, int(self.height * 0.84)),
-                max(100, int(min(self.width, self.height) * 0.18)),
+        word = str(self.spell_word or seg.get("spell_word") or "").upper()
+        if not word.isalpha():
+            word = "".join(ch for ch in word if ch.isalpha()) or "SUN"
+        letters = list(word)
+        n = max(1, len(letters))
+        active = min(n - 1, max(0, int(seg.get("index", 0))))
+        local = segment_local(t, seg)
+        shot = kids_shot(local)
+        pop = shot.letter_scale
+
+        stage = self.layout.stage
+        draw_stage_card(draw, self.layout)
+        slot_w = int(stage.w * 0.82 / n)
+        start_x = stage.cx - (slot_w * n) / 2
+        cy = stage.cy
+        slot_font = load_font(max(32, int(min(slot_w * 0.55, stage.h * 0.40))))
+        active_font = load_font(max(36, int(min(slot_w * 0.62, stage.h * 0.48))))
+        baseline = cy + int(min(slot_w, stage.h) * 0.28)
+
+        for i, letter in enumerate(letters):
+            x = int(start_x + (i + 0.5) * slot_w)
+            y = cy
+            color = self.palette.as_uint8(float(self.hues[i % len(self.hues)]))
+            draw.line(
+                (x - int(slot_w * 0.28), baseline, x + int(slot_w * 0.28), baseline),
+                fill=(170, 185, 205),
+                width=4,
             )
-        elif self.show_motifs:
-            _draw_motif(
-                draw,
-                str(seg.get("motif", word)),
-                self.width // 2,
-                int(self.height * 0.82),
-                int(min(self.width, self.height) * 0.08),
-                self.palette.as_uint8(t % 1.0),
-                t,
-            )
+            if i > active:
+                paint_text(draw, (x, y), "•", self.font_md, (200, 208, 218), anchor="mm")
+                continue
+            if i == active:
+                draw_glow_ring(draw, x, y, int(slot_w * 0.34), color, t, layers=1)
+                font = active_font
+                outline = max(4, int(self.outline_w * 0.9))
+            else:
+                font = slot_font
+                outline = max(3, int(self.outline_w * 0.7))
+            _draw_bubble_letter(draw, letter, (x, y), font, color, outline_w=outline)
+
+        pic_seg = dict(seg)
+        pic_seg["word"] = word
+        pic_seg["motif"] = word
+        self._paste_picture(draw, img, pic_seg, t, pop)

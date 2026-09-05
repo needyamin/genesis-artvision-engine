@@ -20,91 +20,42 @@ STYLE_PROFILES: dict[str, dict[str, Any]] = {
         "speed": (0.3, 0.8),
         "contrast": (0.6, 1.0),
         "density": (0.5, 1.0),
-        "preferred_engines": ["galaxy", "particles", "noise", "tunnel"],
-    },
-    "neon": {
-        "glow": (0.7, 1.0),
-        "speed": (0.8, 1.5),
-        "contrast": (0.8, 1.0),
-        "density": (0.3, 0.7),
-        "preferred_engines": ["neon_lines", "particle_trails", "geometric", "kaleidoscope"],
+        "preferred_engines": ["galaxy", "particles", "tunnel"],
     },
     "minimal": {
         "glow": (0.0, 0.3),
         "speed": (0.2, 0.6),
         "contrast": (0.3, 0.6),
         "density": (0.1, 0.4),
-        "preferred_engines": ["geometric", "waves", "l_system", "noise"],
-    },
-    "psychedelic": {
-        "glow": (0.5, 1.0),
-        "speed": (1.0, 1.8),
-        "contrast": (0.7, 1.0),
-        "density": (0.6, 1.0),
-        "preferred_engines": ["kaleidoscope", "fractal", "julia", "waves"],
-    },
-    "geometric": {
-        "glow": (0.2, 0.6),
-        "speed": (0.4, 1.0),
-        "contrast": (0.5, 0.9),
-        "density": (0.3, 0.7),
-        "preferred_engines": ["geometric", "voronoi", "tunnel", "neon_lines"],
+        "preferred_engines": ["waves", "tunnel", "particles"],
     },
     "organic": {
         "glow": (0.2, 0.5),
         "speed": (0.3, 0.9),
         "contrast": (0.4, 0.8),
         "density": (0.4, 0.9),
-        "preferred_engines": ["reaction_diffusion", "l_system", "waves", "noise"],
-    },
-    "dreamlike": {
-        "glow": (0.4, 0.8),
-        "speed": (0.2, 0.7),
-        "contrast": (0.3, 0.7),
-        "density": (0.3, 0.7),
-        "preferred_engines": ["noise", "waves", "galaxy", "flow_field"],
+        "preferred_engines": ["waves", "galaxy", "particles"],
     },
     "digital": {
         "glow": (0.3, 0.7),
         "speed": (0.8, 1.4),
         "contrast": (0.6, 1.0),
         "density": (0.4, 0.8),
-        "preferred_engines": ["flow_field", "neon_lines", "voronoi", "particles"],
-    },
-    "mathematical": {
-        "glow": (0.2, 0.6),
-        "speed": (0.4, 1.0),
-        "contrast": (0.5, 0.9),
-        "density": (0.4, 0.8),
-        "preferred_engines": ["mandelbrot", "julia", "fractal", "l_system"],
-    },
-    "futuristic": {
-        "glow": (0.5, 0.9),
-        "speed": (0.6, 1.3),
-        "contrast": (0.7, 1.0),
-        "density": (0.4, 0.8),
-        "preferred_engines": ["tunnel", "neon_lines", "geometric", "flow_field"],
-    },
-    "calm": {
-        "glow": (0.1, 0.4),
-        "speed": (0.15, 0.5),
-        "contrast": (0.3, 0.6),
-        "density": (0.2, 0.5),
-        "preferred_engines": ["waves", "noise", "galaxy", "l_system"],
-    },
-    "chaotic": {
-        "glow": (0.4, 1.0),
-        "speed": (1.2, 2.0),
-        "contrast": (0.7, 1.0),
-        "density": (0.7, 1.0),
-        "preferred_engines": ["particles", "particle_trails", "flow_field", "reaction_diffusion"],
+        "preferred_engines": ["particles", "tunnel", "waves"],
     },
     "playful": {
         "glow": (0.3, 0.7),
         "speed": (0.6, 1.3),
         "contrast": (0.5, 0.9),
         "density": (0.5, 0.9),
-        "preferred_engines": ["alphabet_cartoon", "kids_doodles", "hand_art", "geometric"],
+        "preferred_engines": ["alphabet_cartoon", "kids_doodles", "hand_art"],
+    },
+    "documentary": {
+        "glow": (0.3, 0.7),
+        "speed": (0.4, 0.9),
+        "contrast": (0.6, 0.95),
+        "density": (0.4, 0.8),
+        "preferred_engines": ["infographic_explainer", "galaxy", "tunnel", "particles"],
     },
 }
 
@@ -126,3 +77,98 @@ def sample_style_multiplier(rng: np.random.Generator, style: str) -> dict[str, f
 
 def preferred_engines(style: str) -> list[str] | None:
     return STYLE_PROFILES.get(style, {}).get("preferred_engines")
+
+
+# Editorial finish unique to each style (grade, fade, camera, grain).
+STYLE_EDIT: dict[str, dict[str, Any]] = {
+    "abstract": {
+        "edit_feel": "cinematic",
+        "grade": "vivid",
+        "vignette": (0.24, 0.36),
+        "grain": (0.032, 0.055),
+        "fade_in": (0.55, 0.85),
+        "fade_out": (0.90, 1.30),
+        "camera_push": (0.040, 0.070),
+        "micro_contrast": 0.16,
+        "bpm": (88.0, 108.0),
+    },
+    "cosmic": {
+        "edit_feel": "cinematic",
+        "grade": "cinematic",
+        "vignette": (0.36, 0.50),
+        "grain": (0.040, 0.070),
+        "fade_in": (0.85, 1.15),
+        "fade_out": (1.20, 1.60),
+        "camera_push": (0.028, 0.050),
+        "micro_contrast": 0.13,
+        "bpm": (68.0, 84.0),
+    },
+    "minimal": {
+        "edit_feel": "cinematic",
+        "grade": "soft",
+        "vignette": (0.16, 0.26),
+        "grain": (0.018, 0.035),
+        "fade_in": (0.90, 1.20),
+        "fade_out": (1.30, 1.70),
+        "camera_push": (0.015, 0.035),
+        "micro_contrast": 0.09,
+        "bpm": (64.0, 80.0),
+    },
+    "organic": {
+        "edit_feel": "cinematic",
+        "grade": "cinematic",
+        "vignette": (0.20, 0.32),
+        "grain": (0.028, 0.050),
+        "fade_in": (0.70, 1.00),
+        "fade_out": (1.10, 1.50),
+        "camera_push": (0.022, 0.045),
+        "micro_contrast": 0.12,
+        "bpm": (76.0, 92.0),
+    },
+    "digital": {
+        "edit_feel": "cinematic",
+        "grade": "vivid",
+        "vignette": (0.18, 0.30),
+        "grain": (0.012, 0.028),
+        "fade_in": (0.30, 0.50),
+        "fade_out": (0.65, 0.95),
+        "camera_push": (0.048, 0.080),
+        "micro_contrast": 0.20,
+        "bpm": (108.0, 128.0),
+    },
+    "playful": {
+        "edit_feel": "kids_show",
+        "grade": "broadcast",
+        "vignette": (0.04, 0.10),
+        "grain": (0.0, 0.0),
+        "fade_in": (0.30, 0.40),
+        "fade_out": (0.60, 0.80),
+        "camera_push": (0.0, 0.0),
+        "micro_contrast": 0.07,
+        "bpm": (90.0, 96.0),
+    },
+    "documentary": {
+        "edit_feel": "documentary",
+        "grade": "cinematic",
+        "vignette": (0.28, 0.42),
+        "grain": (0.030, 0.055),
+        "fade_in": (0.80, 1.10),
+        "fade_out": (1.20, 1.55),
+        "camera_push": (0.020, 0.042),
+        "micro_contrast": 0.14,
+        "bpm": (72.0, 84.0),
+    },
+}
+
+
+def sample_edit_look(rng: np.random.Generator, style: str) -> dict[str, Any]:
+    """Sample a full editorial look for this style."""
+    profile = STYLE_EDIT.get(style, STYLE_EDIT["abstract"])
+    out: dict[str, Any] = {}
+    for key, value in profile.items():
+        if isinstance(value, tuple) and len(value) == 2:
+            lo, hi = value
+            out[key] = float(rng.uniform(float(lo), float(hi)))
+        else:
+            out[key] = value
+    return out

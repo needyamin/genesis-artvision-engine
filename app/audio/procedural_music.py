@@ -25,9 +25,9 @@ def _midi_to_hz(midi: float) -> float:
 
 def _adsr(n: int, sr: int, a: float = 0.05, d: float = 0.1, s: float = 0.7, r: float = 0.2) -> np.ndarray:
     env = np.ones(n, dtype=np.float32) * s
-    a_n = max(1, int(a * sr))
-    d_n = max(1, int(d * sr))
-    r_n = max(1, int(r * sr))
+    a_n = min(n, max(1, int(a * sr)))
+    d_n = min(n - a_n, max(0, int(d * sr)))
+    r_n = min(n, max(1, int(r * sr)))
     env[:a_n] = np.linspace(0, 1, a_n, dtype=np.float32)
     start = a_n
     end = min(n, a_n + d_n)
@@ -73,47 +73,66 @@ def generate_procedural_audio(
     *,
     sample_rate: int = 44100,
     style: str = "ambient",
+    audio_profile: dict | None = None,
 ) -> np.ndarray:
     """
     Generate a mono float32 waveform in [-1, 1] for the given duration.
 
     Styles lean ambient / synth pad / soft melody suitable for abstract video.
+    audio_profile (from AI) can pin tempo, scale, energy, and pad brightness.
     """
     rng = np.random.default_rng(seed)
     n = max(1, int(duration * sample_rate))
     audio = np.zeros(n, dtype=np.float32)
+    profile = audio_profile if isinstance(audio_profile, dict) else {}
 
-    scale_name = str(rng.choice(list(SCALES.keys())))
+    requested_scale = str(profile.get("scale") or "")
+    if requested_scale == "soft_minor":
+        scale_name = "minor"
+    elif requested_scale in SCALES:
+        scale_name = requested_scale
+    else:
+        scale_name = str(rng.choice(list(SCALES.keys())))
     scale = SCALES[scale_name]
     root = int(rng.integers(48, 60))  # C2-C3 range-ish
-    tempo = float(rng.uniform(60, 100))
+    tempo = float(profile.get("tempo_bpm") or rng.uniform(60, 100))
+    tempo = max(40.0, min(180.0, tempo))
+    energy = float(profile.get("energy", rng.uniform(0.35, 0.7)))
+    energy = max(0.0, min(1.0, energy))
+    pad_brightness = float(profile.get("pad_brightness", rng.uniform(0.3, 0.7)))
+    pad_brightness = max(0.0, min(1.0, pad_brightness))
     beat = 60.0 / tempo
     osc_kind = str(rng.choice(["sine", "triangle", "saw", "sine"]))
     mode = str(rng.choice(["drone", "pad", "melody", "rhythm"], p=[0.25, 0.35, 0.25, 0.15]))
 
     # Style bias
-    if style in {"calm", "dreamlike", "organic"}:
+    if style in {"minimal", "organic"}:
         mode = str(rng.choice(["drone", "pad"]))
         osc_kind = "sine"
-    elif style in {"neon", "futuristic", "digital"}:
+    elif style in {"digital", "cosmic"}:
         osc_kind = str(rng.choice(["saw", "square", "triangle"]))
         mode = str(rng.choice(["melody", "rhythm", "pad"]))
-    elif style in {"chaotic", "psychedelic"}:
+    elif style == "playful":
         mode = str(rng.choice(["melody", "rhythm"]))
-        tempo = float(rng.uniform(90, 130))
-        beat = 60.0 / tempo
+        if "tempo_bpm" not in profile:
+            tempo = float(rng.uniform(90, 130))
+            beat = 60.0 / tempo
 
+    pad_amp = 0.10 + 0.10 * energy
     # Drone / pad bed
-    for partial in range(3):
+    partials = 3 + int(round(pad_brightness * 2))
+    for partial in range(partials):
         deg = scale[int(rng.integers(0, len(scale)))]
         midi = root + deg + 12 * int(rng.integers(0, 2))
+        if pad_brightness > 0.6 and partial >= 3:
+            midi += 12
         freq = _midi_to_hz(midi + partial * 0.02)
         wave = _osc(freq, n, sample_rate, "sine" if mode == "drone" else osc_kind, rng)
-        # slow amplitude LFO
         lfo = 0.5 + 0.5 * np.sin(2 * np.pi * (0.03 + partial * 0.01) * np.arange(n) / sample_rate)
-        audio += wave * lfo * (0.12 / (partial + 1))
+        audio += wave * lfo * (pad_amp / (partial + 1))
 
     # Melodic / rhythmic notes
+    note_amp = 0.07 + 0.16 * energy
     if mode in {"melody", "rhythm", "pad"}:
         t = 0.0
         while t < duration - 0.2:
@@ -130,15 +149,14 @@ def generate_procedural_audio(
             freq = _midi_to_hz(root + deg + octave)
             seg = _osc(freq, end - start, sample_rate, osc_kind, rng)
             env = _adsr(end - start, sample_rate, a=0.02, d=0.08, s=0.55, r=min(0.3, note_len * 0.4))
-            audio[start:end] += seg * env * float(rng.uniform(0.08, 0.18))
-            # Rest occasionally
+            audio[start:end] += seg * env * float(rng.uniform(note_amp * 0.7, note_amp * 1.2))
             t += note_len + float(rng.choice([0.0, 0.0, beat * 0.5]))
 
     # Soft high shimmer
     shimmer_freq = _midi_to_hz(root + 24 + scale[int(rng.integers(0, len(scale)))])
     shimmer = _osc(shimmer_freq, n, sample_rate, "sine", rng)
     shimmer_env = 0.5 + 0.5 * np.sin(2 * np.pi * 0.05 * np.arange(n) / sample_rate)
-    audio += shimmer * shimmer_env * 0.04
+    audio += shimmer * shimmer_env * (0.025 + 0.04 * pad_brightness)
 
     amount = float(rng.uniform(0.25, 0.7))
     audio = _soft_reverb(audio, sample_rate, amount)

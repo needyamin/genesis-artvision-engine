@@ -34,7 +34,10 @@ def ensure_directories(config: dict[str, Any] | None = None) -> dict[str, Path]:
         "sounds": root / "assets" / "sounds",
         "fonts": root / "assets" / "fonts",
     }
-    for key in ("output", "temp", "logs", "data", "music", "sounds", "fonts"):
+    ai_cfg = cfg.get("ai") or {}
+    paths["ai_cache"] = resolve_path(ai_cfg.get("cache_dir") or "./data/ai_cache", root)
+    paths["ai_catalogs"] = resolve_path(ai_cfg.get("catalog_dir") or "./data/ai_catalogs", root)
+    for key in ("output", "temp", "logs", "data", "music", "sounds", "fonts", "ai_cache", "ai_catalogs"):
         paths[key].mkdir(parents=True, exist_ok=True)
     return paths
 

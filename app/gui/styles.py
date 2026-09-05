@@ -194,6 +194,16 @@ QLabel#StatKey {
     color: #5a7180;
 }
 
+QPlainTextEdit#AiLog {
+    background: #f4f8fa;
+    border: 1px solid #c5d4de;
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: #1a2332;
+    font-family: "Segoe UI", "Bahnschrift", sans-serif;
+}
+
 QStatusBar {
     background: #dfe8ee;
     color: #3a5160;
