@@ -25,7 +25,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "audio_bitrate": "192k",
     },
     "temp": {"directory": "./temp", "keep_on_failure": True},
-    "performance": {"workers": "auto", "preview_scale": 0.25, "max_preview_fps": 15},
+    "performance": {"workers": "auto", "hardware_encode": True, "preview_scale": 0.25, "max_preview_fps": 4},
     "logging": {"level": "INFO", "directory": "./logs"},
     "database": {"path": "./data/history.db"},
     "styles": [

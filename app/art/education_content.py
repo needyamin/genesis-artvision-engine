@@ -267,6 +267,11 @@ THEME_WEIGHTS = [
 
 KIDS_EDUCATION_ENGINES = frozenset({"alphabet_cartoon", "kids_doodles", "hand_art"})
 
+ALPHABET_AZ = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+# Floor so each A–Z letter can be spoken slowly even before TTS timing is measured.
+MIN_SECONDS_PER_AZ_LETTER = 5.5
+AZ_END_PAD_SEC = 1.4
+
 DOODLE_THEMES = [
     "shape_fun",
     "color_rainbow",
@@ -787,6 +792,7 @@ def build_education_lesson(
     title_map = {
         "letter_of_day": "Letter of the Day",
         "abc_chart": "ABC Learning Chart",
+        "abc_complete": "A to Z Alphabet",
         "word_builder": "Spell the Word",
         "phonics": "Letter Sounds",
         "animal_friends": "Animal Alphabet",
@@ -795,6 +801,12 @@ def build_education_lesson(
         "dictionary": "Word Dictionary",
     }
     title = title_map.get(theme, "Let's Learn!")
+    complete_az = bool(params.get("complete_alphabet"))
+    if complete_az:
+        theme = "abc_complete"
+        include_numbers = False
+        title = "A to Z Alphabet"
+        intro_hook = "Let's learn A to Z together!"
 
     # Choose letters for this lesson
     focus_letters = [
@@ -813,7 +825,7 @@ def build_education_lesson(
         if isinstance(s, dict)
     ]
 
-    if theme in {"real_world_math", "count_fun"}:
+    if theme in {"real_world_math", "count_fun"} and not complete_az:
         segments = _math_lesson_segments(rng, seg_count, intro_hook)
         n = max(1, len(segments))
         edges = _segment_edges(n, duration, weights=params.get("segment_weights"))
@@ -838,7 +850,7 @@ def build_education_lesson(
             "engage_intro": intro_hook,
         }
 
-    if theme == "dictionary":
+    if theme == "dictionary" and not complete_az:
         segments = _dictionary_lesson_segments(rng, seg_count, intro_hook, focus_words=focus_words)
         n = max(1, len(segments))
         edges = _segment_edges(n, duration, weights=params.get("segment_weights"))
@@ -868,15 +880,23 @@ def build_education_lesson(
     else:
         pool = alphabet
 
-    want_spell = theme == "word_builder" or (
-        str(params.get("mode") or "").lower() == "spell"
-        and theme not in {
-            "letter_of_day", "phonics", "animal_friends", "abc_chart",
-            "real_world_math", "count_fun", "dictionary",
-        }
+    want_spell = (not complete_az) and (
+        theme == "word_builder"
+        or (
+            str(params.get("mode") or "").lower() == "spell"
+            and theme not in {
+                "letter_of_day", "phonics", "animal_friends", "abc_chart",
+                "abc_complete", "real_world_math", "count_fun", "dictionary",
+            }
+        )
     )
     spell_word = ""
-    if want_spell:
+    if complete_az:
+        letters = list(ALPHABET_AZ)
+        visual_mode = "lesson"
+        title = "A to Z Alphabet"
+        duration = max(float(duration), len(letters) * MIN_SECONDS_PER_AZ_LETTER + AZ_END_PAD_SEC)
+    elif want_spell:
         spell_word = choose_spell_word(
             rng,
             focus_words=focus_words,
@@ -917,7 +937,8 @@ def build_education_lesson(
         visual_mode = "lesson"
 
     n = max(1, len(letters))
-    edges = _segment_edges(n, duration, weights=params.get("segment_weights"))
+    az_weights = [1.0] * n if complete_az else params.get("segment_weights")
+    edges = _segment_edges(n, duration, weights=az_weights)
 
     # Map focus words by first letter for quick lookup
     focus_by_letter: dict[str, list[str]] = {}
@@ -929,7 +950,7 @@ def build_education_lesson(
     hyphen = "-".join(letters)
     segments: list[dict[str, Any]] = []
     for i, letter in enumerate(letters):
-        plan = segment_plan[i] if i < len(segment_plan) else {}
+        plan = {} if complete_az else (segment_plan[i] if i < len(segment_plan) else {})
         if visual_mode == "spell" and spell_word:
             word = spell_word
             revealed = "".join(letters[: i + 1])
@@ -977,9 +998,11 @@ def build_education_lesson(
                 tip = "Count with me!"
                 fact = f"Number {letter} is {pick_word(rng, letter).lower()}."
             voice = str(plan.get("voice_line") or "")
+            if complete_az:
+                voice = _az_voice_line(letter, word, intro=intro_hook if i == 0 else "")
             if voice and not _text_fits_teaching(voice, letter=letter, word=word):
                 voice = ""
-            if not voice and ai_voice_pool:
+            if not voice and not complete_az and ai_voice_pool:
                 cand = ai_voice_pool[i % len(ai_voice_pool)]
                 if _text_fits_teaching(cand, letter=letter, word=word):
                     voice = cand
@@ -990,7 +1013,10 @@ def build_education_lesson(
                     if _text_fits_teaching(cand, letter=letter, word=word):
                         voice = cand
             if not voice:
-                voice = _voice_line(letter, word, phonics=phonics)
+                if complete_az:
+                    voice = _az_voice_line(letter, word, intro=intro_hook if i == 0 else "")
+                else:
+                    voice = _voice_line(letter, word, phonics=phonics)
             overlay = str(plan.get("overlay_text") or "")
             if overlay and not _text_fits_teaching(overlay, letter=letter, word=word):
                 overlay = ""
@@ -1000,6 +1026,8 @@ def build_education_lesson(
             caption = str(plan.get("caption") or "")
             if caption and not _text_fits_teaching(caption, letter=letter, word=word):
                 caption = ""
+            if complete_az:
+                caption = f"Letter {i + 1} of {len(letters)}"
             overlay = overlay or line
             motif = motif_key(word)
             revealed = ""
@@ -1023,13 +1051,19 @@ def build_education_lesson(
                 "image_brief": str(plan.get("image_brief") or ""),
                 "image_path": str(plan.get("image_path") or ""),
                 "voice_line": voice,
+                "complete_alphabet": bool(complete_az),
                 "_total": n,
             }
         )
 
-    _overlay_ai_copy(segments, params, lock_spelling=(visual_mode == "spell"))
+    if not complete_az:
+        _overlay_ai_copy(segments, params, lock_spelling=(visual_mode == "spell"))
     for i, seg in enumerate(segments):
         _enrich_segment(seg, rng, is_first=(i == 0))
+        if complete_az:
+            seg["complete_alphabet"] = True
+            seg.pop("quiz", None)
+            seg.pop("challenge", None)
     lock_kids_segments(segments, intro=intro_hook)
 
     return {
@@ -1041,6 +1075,7 @@ def build_education_lesson(
         "spell_word": spell_word,
         "segments": segments,
         "duration": float(duration),
+        "complete_alphabet": bool(complete_az),
         "closing": str(rng.choice(["You did great!", "Learning is fun!", "See you next time!", "Keep practicing!"])),
         "engage_intro": intro_hook,
     }
@@ -1347,6 +1382,12 @@ def _voice_line(letter: str, word: str, phonics: str = "", *, intro: str = "") -
         f"{letter} is for {word.lower()}. {meaning} "
         f"Say {word.lower()}."
     )
+
+
+def _az_voice_line(letter: str, word: str, *, intro: str = "") -> str:
+    """Short A–Z line: letter, then word, so kids can follow one idea at a time."""
+    start = f"{intro} " if intro else ""
+    return f"{start}This is the letter {letter}. {letter} is for {word.lower()}."
 
 
 def _spell_voice_line(index: int, letter: str, word: str, letters: list[str], *, intro: str = "") -> str:

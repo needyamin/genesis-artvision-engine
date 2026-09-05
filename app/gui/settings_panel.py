@@ -159,10 +159,20 @@ class SettingsPanel(QWidget):
         self.random_style.setToolTip("When checked, style is randomized every video.")
         self.random_style.toggled.connect(lambda on: self.style.setEnabled(not on))
 
+        self.complete_az = QCheckBox("Complete A to Z")
+        self.complete_az.setToolTip(
+            "ABC Educational: teach every letter A through Z in order. "
+            "The video grows as long as needed so each letter is spoken slowly "
+            "and stays on screen until the voice finishes."
+        )
+        self.complete_az.toggled.connect(self._on_complete_az)
+        self.art_mode.currentIndexChanged.connect(self._sync_complete_az)
+
         ag.addWidget(QLabel("Engine"), 0, 0)
         ag.addWidget(self.art_mode, 0, 1)
         ag.addWidget(self.random_style, 1, 0)
         ag.addWidget(self.style, 1, 1)
+        ag.addWidget(self.complete_az, 2, 0, 1, 2)
         ag.setColumnStretch(1, 1)
 
         # ---- Batch (bottom-left) ----
@@ -251,6 +261,35 @@ class SettingsPanel(QWidget):
     def _on_unlimited(self, on: bool) -> None:
         self.count.setEnabled(not on)
 
+    def _on_complete_az(self, on: bool) -> None:
+        if on:
+            idx = self.art_mode.findData("alphabet_cartoon")
+            if idx >= 0:
+                self.art_mode.blockSignals(True)
+                self.art_mode.setCurrentIndex(idx)
+                self.art_mode.blockSignals(False)
+            if self.random_style.isChecked():
+                st = self.style.findData("playful")
+                if st >= 0:
+                    self.style.setCurrentIndex(st)
+        self._sync_duration_hint()
+
+    def _sync_complete_az(self) -> None:
+        engine = self.art_mode.currentData()
+        if engine not in (None, "alphabet_cartoon") and self.complete_az.isChecked():
+            self.complete_az.blockSignals(True)
+            self.complete_az.setChecked(False)
+            self.complete_az.blockSignals(False)
+        self._sync_duration_hint()
+
+    def _sync_duration_hint(self) -> None:
+        if self.complete_az.isChecked():
+            self.duration.setToolTip(
+                "A to Z mode: a short duration is extended automatically so every letter is taught."
+            )
+        else:
+            self.duration.setToolTip("Length of each generated video in seconds.")
+
     def _refresh_ai_status(self) -> None:
         from app.ai.client import ENV_API_KEY, has_api_key
 
@@ -291,4 +330,5 @@ class SettingsPanel(QWidget):
             "thumbnail": self.gen_thumb.isChecked(),
             "ai_enabled": self.ai_advisor.isChecked(),
             "ai_per_video": self.ai_advisor.isChecked(),
+            "complete_alphabet": self.complete_az.isChecked(),
         }

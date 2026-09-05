@@ -15,6 +15,7 @@ from app.art.education_content import (
     ensure_ai_catalogs_loaded,
 )
 from app.audio.generator import AudioGenerator
+from app.audio.kids_education import fit_lesson_to_narration
 from app.core.project import cleanup_work_dir, make_work_dir, next_output_paths
 from app.core.randomizer import ProjectSpec, Randomizer
 from app.core.scheduler import BatchScheduler
@@ -76,10 +77,13 @@ class VideoFactory:
         random_resolution: bool = False,
         random_fps: bool = False,
         random_duration: bool = False,
+        complete_alphabet: bool = False,
         control: RenderControl | None = None,
         on_progress: ProgressFn | None = None,
         output_dir: str | Path | None = None,
     ) -> GenerateResult:
+        if complete_alphabet:
+            engine = "alphabet_cartoon"
         spec = self.randomizer.create_project(
             seed=seed,
             engine=engine,
@@ -93,6 +97,11 @@ class VideoFactory:
             random_fps=random_fps,
             random_duration=random_duration,
         )
+        if complete_alphabet:
+            spec.params["complete_alphabet"] = True
+            spec.params["include_numbers"] = False
+            spec.params["mode"] = "lesson"
+            spec.params["lesson_theme"] = "abc_complete"
         return self.render_spec(spec, control=control, on_progress=on_progress, output_dir=output_dir)
 
     def render_spec(
@@ -158,6 +167,14 @@ class VideoFactory:
                 spec.params["_duration"] = spec.duration
 
             # Kids educational engines: shared lesson for video + audio
+            if spec.params.get("complete_alphabet"):
+                spec.engine = "alphabet_cartoon"
+                spec.params["complete_alphabet"] = True
+                spec.params["include_numbers"] = False
+                spec.params["mode"] = "lesson"
+                spec.params["lesson_theme"] = "abc_complete"
+                spec.params.pop("ai_segment_plan", None)
+                spec.params.pop("segment_weights", None)
             if spec.engine in KIDS_EDUCATION_ENGINES:
                 lesson = build_lesson_for_engine(
                     spec.engine,
@@ -186,9 +203,9 @@ class VideoFactory:
                     else:
                         profile = dict(profile)
                     try:
-                        profile["voice_rate"] = min(float(profile.get("voice_rate") or 0.68), 0.72)
+                        profile["voice_rate"] = min(max(float(profile.get("voice_rate") or 0.86), 0.78), 0.94)
                     except (TypeError, ValueError):
-                        profile["voice_rate"] = 0.68
+                        profile["voice_rate"] = 0.86
                     try:
                         profile["voice_pitch"] = min(max(float(profile.get("voice_pitch") or 1.10), 1.02), 1.16)
                     except (TypeError, ValueError):
@@ -207,6 +224,48 @@ class VideoFactory:
                         spec.params["glow"] = min(float(spec.params.get("glow") or 0.12), 0.18)
                     except (TypeError, ValueError):
                         spec.params["glow"] = 0.12
+
+                    # Hold each picture for the full spoken line so kids can follow.
+                    should_fit = spec.audio_enabled and (
+                        bool(lesson.get("complete_alphabet")) or spec.duration >= 8.0
+                    )
+                    lesson_dur = float(lesson.get("duration") or spec.duration)
+                    if should_fit:
+                        if on_progress:
+                            on_progress(
+                                {
+                                    "phase": "voice",
+                                    "seed": spec.seed,
+                                    "engine": spec.engine,
+                                    "style": spec.style,
+                                    "message": "Timing kids voice to each letter…",
+                                }
+                            )
+                        sample_rate = int(self.config.get("audio", {}).get("sample_rate", 44100))
+                        lesson_dur = fit_lesson_to_narration(
+                            lesson,
+                            seed=spec.seed,
+                            sample_rate=sample_rate,
+                            audio_profile=profile,
+                            min_duration=spec.duration,
+                            on_progress=on_progress,
+                        )
+                    spec.duration = max(spec.duration, lesson_dur)
+                    spec.params["_duration"] = spec.duration
+                    lesson["duration"] = spec.duration
+                    spec.params["education_lesson"] = lesson
+                    if on_progress:
+                        on_progress(
+                            {
+                                "phase": "start",
+                                "seed": spec.seed,
+                                "engine": spec.engine,
+                                "style": spec.style,
+                                "frame": 0,
+                                "total_frames": spec.total_frames,
+                                "preview": None,
+                            }
+                        )
 
             from app.ai.realize import realize_visual_assets
 

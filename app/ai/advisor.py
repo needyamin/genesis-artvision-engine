@@ -308,7 +308,17 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
 
 
 def _sanitize_alphabet_direction(spec: Any) -> None:
-    """Stop SPELL videos from using first-letter salad like SABP."""
+    """Keep ABC A–Z complete and stop SPELL videos from using first-letter salad like SABP."""
+    if spec.params.get("complete_alphabet"):
+        spec.engine = "alphabet_cartoon"
+        spec.params["lesson_theme"] = "abc_complete"
+        spec.params["mode"] = "lesson"
+        spec.params["include_numbers"] = False
+        spec.params.pop("focus_letters", None)
+        spec.params.pop("ai_segment_plan", None)
+        spec.params.pop("ai_visual_beats", None)
+        spec.params.pop("segment_weights", None)
+        return
     if getattr(spec, "engine", "") != "alphabet_cartoon":
         return
     from app.art.education_content import _is_letter_salad, choose_spell_word

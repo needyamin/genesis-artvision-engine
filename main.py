@@ -52,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Comma-separated letters for --curate (default: full alphabet)",
     )
+    parser.add_argument(
+        "--complete-az",
+        action="store_true",
+        help="ABC Educational: teach every letter A–Z (duration grows to fit slow kids voice)",
+    )
     return parser
 
 
@@ -124,6 +129,10 @@ def run_cli(args: argparse.Namespace) -> int:
         }
         if args.output:
             overrides["output_dir"] = args.output
+
+    if getattr(args, "complete_az", False):
+        overrides["complete_alphabet"] = True
+        overrides["engine"] = "alphabet_cartoon"
 
     factory = VideoFactory(config)
     results = factory.generate_batch(**{k: v for k, v in overrides.items() if v is not None})

@@ -15,6 +15,8 @@ class ArtEngine(ABC):
 
     name: str = "base"
     description: str = "Base art engine"
+    # False when frame N depends on canvas/state from frame N-1 (cannot paint in parallel).
+    parallel_frames: bool = True
 
     def __init__(self) -> None:
         self.width: int = 1280

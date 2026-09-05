@@ -90,7 +90,7 @@ def advisor_user_prompt(
             "scale": "major | pentatonic | soft_minor",
             "pad_brightness": "0-1",
             "chime_density": "0-1",
-            "voice_rate": "0.55-0.72 for kids (slow)",
+            "voice_rate": "0.78-0.94 for kids (clear, not sluggish)",
             "voice_pitch": "0.7-1.5",
         },
         "notes": "optional short note shown in the GUI",

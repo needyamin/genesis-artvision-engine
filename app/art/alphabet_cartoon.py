@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 
@@ -205,6 +204,8 @@ class AlphabetCartoonEngine(ArtEngine):
         self.sparks_ph = self.rng.random(sp).astype(np.float32)
         self.confetti_seeds = self.rng.random(40).astype(np.float32)
 
+        self._bg_base = self._build_static_background()
+
         # Expose lesson for audio pipeline (copied into params by renderer caller if needed)
         self.params["education_lesson"] = self.lesson
         self.show_word_images = bool(self.params.get("show_word_images", True))
@@ -236,7 +237,8 @@ class AlphabetCartoonEngine(ArtEngine):
             return 1.0
         return kids_pop(local_t)
 
-    def _make_background(self, t: float) -> Image.Image:
+    def _build_static_background(self) -> Image.Image:
+        """Cache the still backdrop so every frame does not rebuild Full HD gradients."""
         assert self.palette is not None
         if self.bg_style == "notebook":
             img = Image.new("RGB", (self.width, self.height), (250, 247, 235))
@@ -245,39 +247,42 @@ class AlphabetCartoonEngine(ArtEngine):
             for y in range(int(self.height * 0.12), self.height, step):
                 draw.line((40, y, self.width - 40, y), fill=(180, 210, 230), width=2)
             draw.line((int(self.width * 0.08), 0, int(self.width * 0.08), self.height), fill=(240, 140, 140), width=3)
-        elif self.bg_style == "sky":
-            top = np.array(self.palette.as_uint8(0.55), dtype=np.float32)
-            bot = np.array((255, 230, 180), dtype=np.float32)
-            arr = np.zeros((self.height, self.width, 3), dtype=np.float32)
-            for y in range(self.height):
-                f = y / max(1, self.height - 1)
-                arr[y] = top * (1 - f) + bot * f
-            img = Image.fromarray(arr.astype(np.uint8))
-            draw = ImageDraw.Draw(img)
-            for i in range(3):
-                cx = int(((i * 0.28 + t * 0.02) % 1.15) * self.width)
-                cy = int(self.height * (0.14 + 0.07 * (i % 2)))
-                for ox, oy, r in ((-30, 0, 36), (0, -12, 42), (34, 0, 34)):
-                    draw.ellipse((cx + ox - r, cy + oy - r, cx + ox + r, cy + oy + r), fill=(255, 255, 255))
-        elif self.bg_style == "classroom":
+            return img
+        if self.bg_style == "classroom":
             img = Image.new("RGB", (self.width, self.height), (62, 110, 78))
             draw = ImageDraw.Draw(img)
             m = int(min(self.width, self.height) * 0.04)
             draw.rectangle((m, m, self.width - m, self.height - m), outline=(230, 230, 210), width=4)
             draw.rectangle((0, int(self.height * 0.88), self.width, self.height), fill=(140, 90, 50))
-        else:
-            arr = np.full((self.height, self.width, 3), 240, dtype=np.float32)
-            yy, xx = np.ogrid[: self.height, : self.width]
-            for i in range(3):
-                c = np.array(self.palette.as_uint8((i * 0.22) % 1.0), dtype=np.float32)
-                cx = (0.28 + 0.22 * i) * self.width
-                cy = (0.28 + 0.18 * (i % 2)) * self.height
-                dist = ((xx - cx) ** 2 + (yy - cy) ** 2) / (min(self.width, self.height) ** 2)
-                mask = np.exp(-dist * 5)[..., None]
-                arr = arr * (1 - 0.22 * mask) + c * (0.22 * mask)
-            img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
-            draw = ImageDraw.Draw(img)
+            return img
+        if self.bg_style == "sky":
+            top = np.array(self.palette.as_uint8(0.55), dtype=np.float32)
+            bot = np.array((255, 230, 180), dtype=np.float32)
+            fade = np.linspace(0.0, 1.0, self.height, dtype=np.float32)[:, None, None]
+            col = top * (1.0 - fade) + bot * fade
+            arr = np.broadcast_to(col, (self.height, self.width, 3)).copy()
+            return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+        arr = np.full((self.height, self.width, 3), 240, dtype=np.float32)
+        yy, xx = np.ogrid[: self.height, : self.width]
+        for i in range(3):
+            c = np.array(self.palette.as_uint8((i * 0.22) % 1.0), dtype=np.float32)
+            cx = (0.28 + 0.22 * i) * self.width
+            cy = (0.28 + 0.18 * (i % 2)) * self.height
+            dist = ((xx - cx) ** 2 + (yy - cy) ** 2) / (min(self.width, self.height) ** 2)
+            mask = np.exp(-dist * 5)[..., None]
+            arr = arr * (1 - 0.22 * mask) + c * (0.22 * mask)
+        return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
 
+    def _make_background(self, t: float) -> Image.Image:
+        assert self.palette is not None
+        img = self._bg_base.copy()
+        draw = ImageDraw.Draw(img)
+        if self.bg_style == "sky":
+            for i in range(3):
+                cx = int(((i * 0.28 + t * 0.02) % 1.15) * self.width)
+                cy = int(self.height * (0.14 + 0.07 * (i % 2)))
+                for ox, oy, r in ((-30, 0, 36), (0, -12, 42), (34, 0, 34)):
+                    draw.ellipse((cx + ox - r, cy + oy - r, cx + ox + r, cy + oy + r), fill=(255, 255, 255))
         if self.sparkle > 0.1:
             for i in range(len(self.sparks_x)):
                 tw = 0.45 + 0.55 * abs(np.sin((t + self.sparks_ph[i]) * np.pi * 1.4))
@@ -313,8 +318,7 @@ class AlphabetCartoonEngine(ArtEngine):
         self._draw_hud(draw, img, t, seg)
 
         arr = np.array(img, dtype=np.uint8, copy=True)
-        blur = cv2.GaussianBlur(arr, (0, 0), sigmaX=0.4)
-        return cv2.addWeighted(arr, 0.97, blur, 0.03, 0)
+        return arr
 
     def _draw_hud(self, draw: ImageDraw.ImageDraw, img: Image.Image, t: float, seg: dict) -> None:
         hud = dict(seg)

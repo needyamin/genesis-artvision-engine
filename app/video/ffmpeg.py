@@ -5,8 +5,13 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 from typing import Sequence
+
+from app.utils.logger import get_logger
+
+logger = get_logger("ffmpeg")
 
 
 class FFmpegError(RuntimeError):
@@ -70,6 +75,124 @@ def check_ffmpeg() -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _listed_h264_encoders(ffmpeg: str) -> set[str]:
+    try:
+        proc = subprocess.run(
+            [ffmpeg, "-hide_banner", "-encoders"],
+            capture_output=True,
+            timeout=8,
+            check=False,
+        )
+        text = (proc.stdout or b"").decode("utf-8", errors="replace")
+    except Exception:
+        return {"libx264"}
+    found = {"libx264"} if "libx264" in text else set()
+    for name in ("h264_qsv", "h264_nvenc", "h264_amf"):
+        if name in text:
+            found.add(name)
+    return found
+
+
+def _probe_encoder(ffmpeg: str, codec: str, extra: Sequence[str]) -> bool:
+    """Encode two tiny raw frames to confirm this H.264 encoder actually works."""
+    w, h, frames = 128, 64, 2
+    raw = bytes(w * h * 3 * frames)
+    cmd = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-s",
+        f"{w}x{h}",
+        "-r",
+        "10",
+        "-i",
+        "-",
+        "-frames:v",
+        str(frames),
+        "-c:v",
+        codec,
+        *list(extra),
+        "-f",
+        "null",
+        "-",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=raw,
+            capture_output=True,
+            timeout=6,
+            check=False,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+@lru_cache(maxsize=4)
+def detect_h264_encoder(ffmpeg: str, *, hardware: bool = True) -> tuple[str, tuple[str, ...], str]:
+    """
+    Pick the fastest working H.264 encoder.
+
+    Returns (codec, extra_args, label). Result is cached per ffmpeg path.
+    """
+    software = (
+        "libx264",
+        (
+            "-pix_fmt",
+            "yuv420p",
+            "-preset",
+            "veryfast",
+            "-tune",
+            "animation",
+            "-threads",
+            "0",
+        ),
+        "CPU x264",
+    )
+    if not hardware:
+        return software
+
+    available = _listed_h264_encoders(ffmpeg)
+    candidates: list[tuple[str, tuple[str, ...], str]] = [
+        (
+            "h264_qsv",
+            ("-vf", "format=nv12", "-preset", "veryfast", "-look_ahead", "0"),
+            "Intel Quick Sync",
+        ),
+        (
+            "h264_qsv",
+            ("-pix_fmt", "nv12", "-preset", "veryfast", "-look_ahead", "0"),
+            "Intel Quick Sync",
+        ),
+        (
+            "h264_nvenc",
+            ("-pix_fmt", "yuv420p", "-preset", "p4", "-tune", "ll", "-rc", "vbr"),
+            "NVIDIA NVENC",
+        ),
+        (
+            "h264_amf",
+            ("-pix_fmt", "yuv420p", "-quality", "speed"),
+            "AMD AMF",
+        ),
+    ]
+    for codec, extra, label in candidates:
+        if codec not in available:
+            continue
+        if _probe_encoder(ffmpeg, codec, extra):
+            logger.info("Hardware encoder ready: %s (%s)", label, codec)
+            return codec, extra, label
+        logger.debug("Encoder listed but probe failed: %s", codec)
+    logger.info("Using software libx264 (no working GPU encoder)")
+    return software
+
+
 def build_raw_video_encode_cmd(
     *,
     ffmpeg: str,
@@ -80,14 +203,29 @@ def build_raw_video_encode_cmd(
     audio_path: Path | None = None,
     video_bitrate: str = "8M",
     audio_bitrate: str = "192k",
+    video_codec: str = "libx264",
+    codec_args: Sequence[str] | None = None,
 ) -> list[str]:
     """
     Build an FFmpeg command that reads raw RGB24 frames from stdin
     and encodes an H.264 MP4 (optionally muxing AAC audio).
     """
+    extra = list(codec_args) if codec_args is not None else [
+        "-pix_fmt",
+        "yuv420p",
+        "-preset",
+        "veryfast",
+        "-tune",
+        "animation",
+        "-threads",
+        "0",
+    ]
     cmd: list[str] = [
         ffmpeg,
         "-y",
+        "-hide_banner",
+        "-thread_queue_size",
+        "512",
         "-f",
         "rawvideo",
         "-vcodec",
@@ -105,13 +243,8 @@ def build_raw_video_encode_cmd(
         cmd += ["-i", str(audio_path)]
     cmd += [
         "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-preset",
-        "fast",
-        "-tune",
-        "animation",
+        video_codec,
+        *extra,
         "-b:v",
         video_bitrate,
         "-movflags",

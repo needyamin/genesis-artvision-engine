@@ -26,9 +26,10 @@ temp:
   keep_on_failure: true
 
 performance:
-  workers: auto
+  workers: auto          # paint frames on many CPU cores (auto = CPU count minus 2)
+  hardware_encode: true  # Intel Quick Sync / NVIDIA / AMD when FFmpeg supports it
   preview_scale: 0.25
-  max_preview_fps: 15
+  max_preview_fps: 4     # GUI preview rate; lower = faster renders
 
 logging:
   level: INFO

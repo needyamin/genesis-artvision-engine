@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.art.education_content import (
+    ALPHABET_AZ,
     EASY_SPELL_WORDS,
+    MIN_SECONDS_PER_AZ_LETTER,
     build_education_lesson,
     build_hand_art_lesson,
     build_kids_doodle_lesson,
@@ -19,7 +21,7 @@ from app.art.education_content import (
     choose_spell_word,
 )
 from app.art.fonts import load_font, paint_text, usable_caption
-from app.audio.kids_education import generate_kids_education_audio
+from app.audio.kids_education import fit_lesson_to_narration, generate_kids_education_audio
 from app.audio.offline_tts import kids_narration_lines, speak_text
 from app.audio.procedural_voice import synthesize_speech, text_to_phonemes
 from PIL import Image, ImageDraw
@@ -283,11 +285,11 @@ def test_doodle_math_and_dictionary_themes():
     assert "say" in str(dict_lesson["segments"][0]["voice_line"]).lower()
 
 
-def test_kids_ssml_is_slow_and_pauses_letters():
+def test_kids_ssml_pauses_letters():
     from app.audio.offline_tts import _ssml_for
 
     ssml = _ssml_for(["Cat. C. A. T. A cat is a pet.", "1. 2. 3."], 10, kids=True)
-    assert 'rate="slow"' in ssml
+    assert 'rate="-10%"' in ssml
     assert "<break time=" in ssml
     assert "C<break" in ssml.replace(" ", "")
     assert "1<break" in ssml.replace(" ", "")
@@ -447,4 +449,56 @@ def test_kids_engine_mode_follows_lesson():
     frame = eng.render_frame(4, 12)
     eng.cleanup()
     assert frame.shape == (180, 320, 3)
+
+
+def test_complete_alphabet_covers_a_to_z():
+    lesson = build_education_lesson(
+        5,
+        10.0,
+        params={"complete_alphabet": True, "lesson_theme": "dictionary", "include_numbers": True},
+    )
+    assert list(lesson["letters"]) == list(ALPHABET_AZ)
+    assert len(lesson["segments"]) == 26
+    assert lesson["theme"] == "abc_complete"
+    assert lesson["duration"] >= 26 * MIN_SECONDS_PER_AZ_LETTER
+    assert [seg["letter"] for seg in lesson["segments"]] == list(ALPHABET_AZ)
+    for i, seg in enumerate(lesson["segments"]):
+        letter = chr(ord("A") + i)
+        assert seg["letter"] == letter
+        assert str(seg["word"]).upper().startswith(letter)
+        blob = " ".join(kids_narration_lines(seg)).lower()
+        assert letter.lower() in blob
+        assert str(seg["word"]).lower() in blob
+
+
+def test_complete_az_voice_is_easy_to_follow():
+    lesson = build_education_lesson(1, 12.0, params={"complete_alphabet": True})
+    lines = kids_narration_lines(lesson["segments"][0])
+    blob = " ".join(lines).lower()
+    assert "letter a" in blob
+    assert lesson["segments"][0]["word"].lower() in blob
+    assert len(blob.split()) <= 24
+
+
+def test_fit_lesson_to_narration_holds_full_speech(monkeypatch):
+    lesson = build_education_lesson(
+        3,
+        8.0,
+        params={"lesson_theme": "letter_of_day", "focus_letters": ["A", "B"]},
+    )
+    sr = 8000
+
+    def fake_speak(lines, **kwargs):
+        rate = int(kwargs.get("sample_rate") or sr)
+        return np.ones(int(6.0 * rate), dtype=np.float32) * 0.1
+
+    monkeypatch.setattr("app.audio.kids_education.speak_narration", fake_speak)
+    new_dur = fit_lesson_to_narration(lesson, seed=1, sample_rate=sr, min_duration=8.0)
+    assert lesson["speech_synced"] is True
+    for seg in lesson["segments"]:
+        span = (float(seg["t1"]) - float(seg["t0"])) * new_dur
+        assert float(seg["speech_seconds"]) >= 5.99
+        assert span + 1e-6 >= float(seg["speech_lead"]) + float(seg["speech_seconds"])
+    audio = generate_kids_education_audio(new_dur, 1, lesson, sample_rate=sr)
+    assert len(audio) == int(round(new_dur * sr))
 

@@ -25,6 +25,13 @@ def test_all_engines_registered():
         assert name in engines, f"missing engine {name}"
 
 
+def test_particles_are_sequential_other_engines_parallel():
+    ensure_engines_loaded()
+    assert get_engine("particles").parallel_frames is False
+    assert get_engine("alphabet_cartoon").parallel_frames is True
+    assert get_engine("galaxy").parallel_frames is True
+
+
 def test_each_engine_renders_frame():
     cfg = load_config()
     rnd = Randomizer(cfg)

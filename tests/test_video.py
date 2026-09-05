@@ -37,6 +37,32 @@ def test_ffmpeg_command_shape():
     assert "yuv420p" in cmd
     assert "-an" in cmd
     assert "320x180" in cmd
+    assert "veryfast" in cmd
+    assert "-thread_queue_size" in cmd
+
+
+def test_resolve_workers_uses_many_cores():
+    from app.utils.performance import resolve_workers
+
+    n = resolve_workers({"performance": {"workers": "auto"}}, width=1920, height=1080)
+    assert n >= 2
+    capped = resolve_workers({"performance": {"workers": 99}}, width=3840, height=2160)
+    assert capped <= 8
+
+
+def test_ffmpeg_command_can_use_qsv_args():
+    cmd = build_raw_video_encode_cmd(
+        ffmpeg="ffmpeg",
+        width=1920,
+        height=1080,
+        fps=30,
+        output=Path("out.mp4"),
+        audio_path=None,
+        video_codec="h264_qsv",
+        codec_args=("-pix_fmt", "nv12", "-preset", "veryfast"),
+    )
+    assert "h264_qsv" in cmd
+    assert "nv12" in cmd
 
 
 def test_ffmpeg_available():

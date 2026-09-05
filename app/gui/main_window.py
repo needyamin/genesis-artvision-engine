@@ -71,6 +71,7 @@ class GenerateWorker(QThread):
                 random_resolution=self.options.get("random_resolution", False),
                 random_fps=self.options.get("random_fps", False),
                 random_duration=self.options.get("random_duration", False),
+                complete_alphabet=self.options.get("complete_alphabet", False),
                 seed=self.options.get("seed"),
             )
             self.finished_batch.emit(results)
@@ -405,7 +406,7 @@ class MainWindow(QMainWindow):
         if phase == "ai":
             self._on_ai_progress(payload)
             return
-        if phase in {"start", "render", "audio"}:
+        if phase in {"start", "render", "audio", "voice"}:
             engine = payload.get("engine", "?")
             style = payload.get("style", "?")
             seed = payload.get("seed", "?")
@@ -416,6 +417,7 @@ class MainWindow(QMainWindow):
             mins, secs = divmod(int(elapsed), 60)
             phase_status = {
                 "start": "Preparing…",
+                "voice": str(payload.get("message") or "Timing kids voice…"),
                 "audio": "Creating soundtrack…",
                 "render": f"Rendering frames ({frame}/{total})",
             }.get(str(phase), str(phase))

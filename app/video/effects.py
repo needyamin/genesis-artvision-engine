@@ -229,6 +229,8 @@ def apply_editorial_finish(
     out = apply_vignette(out, vignette)
 
     sharpen = float(params.get("micro_contrast") or (0.06 if kids else 0.16))
+    if kids:
+        sharpen = 0.0
     out = apply_micro_contrast(out, sharpen)
 
     grain = float(params.get("grain") or (0.0 if kids else 0.045))

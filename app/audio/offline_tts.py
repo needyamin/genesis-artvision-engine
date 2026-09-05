@@ -6,6 +6,7 @@ import hashlib
 import logging
 import subprocess
 import sys
+import threading
 import wave
 import xml.sax.saxutils as xml_escape
 from pathlib import Path
@@ -16,6 +17,18 @@ from app.audio.procedural_voice import synthesize_speech
 from app.utils.paths import project_root
 
 logger = logging.getLogger("audio.offline_tts")
+
+_KEY_LOCKS_GUARD = threading.Lock()
+_KEY_LOCKS: dict[str, threading.Lock] = {}
+
+
+def _lock_for(key: str) -> threading.Lock:
+    with _KEY_LOCKS_GUARD:
+        lock = _KEY_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _KEY_LOCKS[key] = lock
+        return lock
 
 
 def voice_cache_dir() -> Path:
@@ -52,6 +65,14 @@ def kids_narration_lines(seg: dict) -> list[str]:
             ans = int(seg.get("count") or (left + right if op != "-" else left - right))
             add(f"{left} {'take away' if op == '-' else 'plus'} {right} is {ans}.")
         add(seg.get("celebrate") or "You did the math! Great job!")
+        return lines[:2]
+
+    if seg.get("complete_alphabet"):
+        add(seg.get("voice_line"))
+        if letter and letter.lower() not in " ".join(lines).lower():
+            add(f"This is the letter {letter}.")
+        if word and f"say {word.lower()}" not in " ".join(lines).lower():
+            add(f"Say {word.lower()}.")
         return lines[:2]
 
     if kind == "dictionary" or str(seg.get("spell_word") or "").strip():
@@ -114,7 +135,7 @@ def speak_narration(
     *,
     sample_rate: int = 44100,
     pitch: float = 1.10,
-    speed: float = 0.68,
+    speed: float = 0.86,
     seed: int = 0,
     kids: bool = True,
 ) -> np.ndarray:
@@ -122,23 +143,24 @@ def speak_narration(
     cleaned = [" ".join(str(line).split()).strip() for line in lines if str(line).strip()]
     if not cleaned:
         return np.zeros(1, dtype=np.float32)
-    # Kids: map 0.68 → about Rate -3, and SSML "slow" so SAPI actually slows down.
+    # Kids: a bit under normal pace so words stay clear, not drawn-out.
+    # speed 0.86 → SAPI Rate about -1.
     sapi_rate = int(np.clip(round((float(speed) - 1.0) * 10.0), -8, 5))
     if kids:
-        sapi_rate = min(sapi_rate, -3)
+        sapi_rate = min(max(sapi_rate, -2), 0)
     pitch_pct = int(np.clip(round((float(pitch) - 1.0) * 100.0), 0, 18))
     wav = _sapi_cached(cleaned, sapi_rate=sapi_rate, pitch_pct=pitch_pct, kids=kids)
     if wav is not None:
         return _resample_mono(wav, 44100, sample_rate)
     chunks: list[np.ndarray] = []
-    pause = np.zeros(max(1, int((0.55 if kids else 0.28) * sample_rate)), dtype=np.float32)
+    pause = np.zeros(max(1, int((0.32 if kids else 0.28) * sample_rate)), dtype=np.float32)
     for i, line in enumerate(cleaned):
         chunks.append(
             synthesize_speech(
                 line,
                 sample_rate=sample_rate,
                 pitch=pitch,
-                speed=min(speed, 0.72) if kids else speed,
+                speed=min(speed, 0.92) if kids else speed,
                 seed=seed + i * 17,
             )
         )
@@ -154,7 +176,7 @@ def speak_text(
     *,
     sample_rate: int = 44100,
     pitch: float = 1.10,
-    speed: float = 0.68,
+    speed: float = 0.86,
     seed: int = 0,
 ) -> np.ndarray:
     return speak_narration([text], sample_rate=sample_rate, pitch=pitch, speed=speed, seed=seed, kids=True)
@@ -164,34 +186,35 @@ def _sapi_cached(lines: list[str], *, sapi_rate: int, pitch_pct: int, kids: bool
     if sys.platform != "win32":
         return None
     key = hashlib.md5(
-        "|".join(lines).encode("utf-8") + f"|{sapi_rate}|{pitch_pct}|k{int(kids)}".encode()
+        "|".join(lines).encode("utf-8") + f"|{sapi_rate}|{pitch_pct}|k{int(kids)}|v3".encode()
     ).hexdigest()
     wav_path = voice_cache_dir() / f"{key}.wav"
-    if wav_path.exists() and wav_path.stat().st_size > 44:
-        try:
-            return _load_wav_mono(wav_path, 44100)
-        except Exception:
-            logger.debug("Could not read cached TTS wav %s", wav_path)
-    try:
-        _powershell_sapi(lines, wav_path, sapi_rate=sapi_rate, pitch_pct=pitch_pct, kids=kids)
+    with _lock_for(key):
         if wav_path.exists() and wav_path.stat().st_size > 44:
-            return _load_wav_mono(wav_path, 44100)
-    except Exception as exc:  # noqa: BLE001
-        logger.info("Windows TTS unavailable, using offline voice: %s", exc)
-    return None
+            try:
+                return _load_wav_mono(wav_path, 44100)
+            except Exception:
+                logger.debug("Could not read cached TTS wav %s", wav_path)
+        try:
+            _powershell_sapi(lines, wav_path, sapi_rate=sapi_rate, pitch_pct=pitch_pct, kids=kids)
+            if wav_path.exists() and wav_path.stat().st_size > 44:
+                return _load_wav_mono(wav_path, 44100)
+        except Exception as exc:  # noqa: BLE001
+            logger.info("Windows TTS unavailable, using offline voice: %s", exc)
+        return None
 
 
 def _ssml_for(lines: list[str], pitch_pct: int, *, kids: bool = False) -> str:
     parts: list[str] = []
-    gap = "700ms" if kids else "420ms"
-    letter_gap = "380ms" if kids else "180ms"
+    gap = "380ms" if kids else "420ms"
+    letter_gap = "220ms" if kids else "180ms"
     for i, line in enumerate(lines):
         parts.append(_ssml_line(line, letter_gap=letter_gap))
         if i < len(lines) - 1:
             parts.append(f'<break time="{gap}"/>')
     body = "".join(parts)
     pitch = f"{pitch_pct:+d}%"
-    rate = "slow" if kids else "medium"
+    rate = "-10%" if kids else "medium"
     return (
         '<?xml version="1.0" encoding="utf-8"?>'
         '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">'
@@ -249,7 +272,7 @@ $speak.Dispose()
     result = subprocess.run(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ps1_path)],
         check=False,
-        timeout=50,
+        timeout=90,
         capture_output=True,
         creationflags=flags,
     )

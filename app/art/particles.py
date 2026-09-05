@@ -13,6 +13,7 @@ from app.art.edit_brain import beat_pulse, director_time, style_motion
 class ParticleUniverseEngine(ArtEngine):
     name = "particles"
     description = "Particle universe with gravity and turbulence"
+    parallel_frames = False
 
     def _on_setup(self) -> None:
         assert self.rng is not None
