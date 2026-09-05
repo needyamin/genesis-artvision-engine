@@ -14,13 +14,11 @@ import cv2
 import numpy as np
 
 from app.art.base import ArtEngine, get_engine
-from app.art.education_content import KIDS_EDUCATION_ENGINES
 from app.core.randomizer import ProjectSpec
 from app.utils.logger import get_logger
 from app.utils.performance import hardware_encode_enabled, resolve_workers
 from app.video.effects import apply_editorial_finish, apply_effects
 from app.video.ffmpeg import FFmpegError, build_raw_video_encode_cmd, detect_h264_encoder, find_ffmpeg
-from app.video.overlays import apply_ai_overlays
 
 logger = get_logger("renderer")
 
@@ -53,8 +51,6 @@ ProgressCallback = Callable[[int, int, np.ndarray | None], None]
 def _compose_frame(engine: ArtEngine, spec: ProjectSpec, index: int, total: int) -> np.ndarray:
     frame = engine.render_frame(index, total)
     frame = apply_effects(frame, spec.params)
-    if spec.engine not in KIDS_EDUCATION_ENGINES:
-        frame = apply_ai_overlays(frame, spec, index, total)
     frame = apply_editorial_finish(
         frame,
         spec.params,

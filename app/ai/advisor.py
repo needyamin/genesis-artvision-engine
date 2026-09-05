@@ -13,7 +13,6 @@ from app.ai.client import AIClientError, chat_completion, has_api_key
 from app.ai.prompts import SYSTEM_ADVISOR, advisor_user_prompt
 from app.ai.schemas import SCHEMA_VERSION, CreativeDirection, parse_creative_direction
 from app.art.education_content import KIDS_EDUCATION_ENGINES
-from app.art.styles import sample_style_multiplier
 from app.utils.logger import get_logger
 from app.utils.paths import resolve_path
 
@@ -145,7 +144,7 @@ def suggest_for_spec(
     cached = load_cached_direction(config, key)
     if cached is not None:
         logger.info("AI cache hit seed=%s engine=%s", spec.seed, spec.engine)
-        direction = parse_creative_direction(cached.to_dict(), engine=spec.engine)
+        direction = parse_creative_direction(cached.to_dict(), engine=spec.engine, style=spec.style)
         _emit(
             on_progress,
             {
@@ -204,7 +203,7 @@ def suggest_for_spec(
     ]
     try:
         content = chat_completion(messages=messages, config=config)
-        direction = parse_creative_direction(content, engine=spec.engine)
+        direction = parse_creative_direction(content, engine=spec.engine, style=spec.style)
         save_cached_direction(
             config,
             key,
@@ -235,17 +234,7 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
         return spec
 
     locked_engine = str(spec.engine)
-
-    if direction.style:
-        spec.style = str(direction.style)
-        rng = np.random.default_rng(int(spec.seed) + 101)
-        multipliers = sample_style_multiplier(rng, spec.style)
-        spec.params["style_multipliers"] = multipliers
-        spec.params["glow"] = multipliers["glow"]
-        prev_blur = float(spec.params.get("blur", 0.2))
-        spec.params["blur"] = float(max(0.0, min(1.5, prev_blur * multipliers["glow"])))
-        spec.params["animation_speed"] = multipliers["speed"]
-        spec.params["contrast"] = multipliers["contrast"]
+    locked_style = str(spec.style)
 
     if direction.param_overrides:
         spec.params.update(direction.param_overrides)
@@ -267,7 +256,7 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
     if kids:
         if direction.lesson_theme:
             spec.params["lesson_theme"] = direction.lesson_theme
-        if direction.focus_letters:
+        if locked_engine == "alphabet_cartoon" and direction.focus_letters:
             spec.params["focus_letters"] = list(direction.focus_letters)
         if direction.focus_words:
             spec.params["focus_words"] = list(direction.focus_words)
@@ -277,6 +266,14 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
             spec.params["ai_fun_facts"] = list(direction.fun_facts)
         if direction.segment_weights:
             spec.params["segment_weights"] = list(direction.segment_weights)
+        if direction.segment_plan:
+            spec.params["ai_segment_plan"] = list(direction.segment_plan)
+        if direction.visual_beats:
+            spec.params["ai_visual_beats"] = list(direction.visual_beats)
+            if not direction.segment_plan:
+                spec.params["ai_segment_plan"] = list(direction.visual_beats)
+        if direction.title:
+            spec.params["ai_title"] = direction.title
     elif explainer:
         if direction.fun_facts:
             spec.params["ai_fun_facts"] = list(direction.fun_facts)
@@ -285,6 +282,9 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
         spec.params.pop("focus_words", None)
         spec.params.pop("ai_voice_lines", None)
         spec.params.pop("complete_alphabet", None)
+        spec.params.pop("ai_visual_beats", None)
+        spec.params.pop("ai_segment_plan", None)
+        spec.params.pop("ai_title", None)
     else:
         spec.params.pop("lesson_theme", None)
         spec.params.pop("focus_letters", None)
@@ -292,17 +292,9 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
         spec.params.pop("ai_voice_lines", None)
         spec.params.pop("ai_fun_facts", None)
         spec.params.pop("complete_alphabet", None)
-
-    if direction.segment_plan:
-        spec.params["ai_segment_plan"] = list(direction.segment_plan)
-
-    if direction.visual_beats:
-        spec.params["ai_visual_beats"] = list(direction.visual_beats)
-        if not direction.segment_plan:
-            spec.params["ai_segment_plan"] = list(direction.visual_beats)
-
-    if direction.title:
-        spec.params["ai_title"] = direction.title
+        spec.params.pop("ai_visual_beats", None)
+        spec.params.pop("ai_segment_plan", None)
+        spec.params.pop("ai_title", None)
 
     if direction.audio_profile:
         spec.params["audio_profile"] = dict(direction.audio_profile)
@@ -320,8 +312,10 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
     spec.params["ai_applied"] = True
     spec.params["ai_summary"] = format_direction_summary(direction)
     spec.engine = locked_engine
+    spec.style = locked_style
     _sanitize_alphabet_direction(spec)
     spec.engine = locked_engine
+    spec.style = locked_style
     return spec
 
 

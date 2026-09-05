@@ -10,12 +10,7 @@ from typing import Any
 from app.art.education_content import KIDS_EDUCATION_ENGINES
 from app.core.randomizer import ENGINE_PARAM_SPECS, VISUAL_ART_ENGINES
 
-SCHEMA_VERSION = 5
-
-_ABC_OVERLAY = re.compile(
-    r"(?i)^\s*(?:[A-Z]\s+is\s+for\b|let'?s\s+learn\b|spell\s+[A-Z]|say\s+the\s+word\b)"
-)
-_KIDS_BEAT_KEYS = ("letter", "word", "voice_line", "phonics", "fact")
+SCHEMA_VERSION = 7
 
 _JSON_FENCE = re.compile(r"```(?:json)?\s*([\s\S]*?)```", re.IGNORECASE)
 
@@ -112,8 +107,13 @@ def extract_json_object(text: str) -> dict[str, Any]:
     return json.loads(text[start : end + 1])
 
 
-def parse_creative_direction(raw: str | dict[str, Any], *, engine: str) -> CreativeDirection:
-    """Parse and validate/clamp creative direction for a given engine."""
+def parse_creative_direction(
+    raw: str | dict[str, Any],
+    *,
+    engine: str,
+    style: str | None = None,
+) -> CreativeDirection:
+    """Parse and validate/clamp creative direction for a given engine (+ optional locked style)."""
     if isinstance(raw, str):
         data = extract_json_object(raw)
     else:
@@ -154,39 +154,32 @@ def parse_creative_direction(raw: str | dict[str, Any], *, engine: str) -> Creat
                     ]
                 )
         direction.palette_colors = cleaned or None
-    return sanitize_direction_for_engine(direction, engine)
+    direction = sanitize_direction_for_engine(direction, engine)
+    if style:
+        direction.style = str(style)
+    return direction
 
 
 def sanitize_direction_for_engine(direction: CreativeDirection, engine: str) -> CreativeDirection:
-    """Keep kids/education fields only for engines the user actually chose."""
+    """Keep kids/education fields only for engines the user actually chose.
+
+    Procedural art and the science explainer must not receive article cards,
+    titles, or extra pictures — those engines paint the whole frame.
+    """
     if engine in KIDS_EDUCATION_ENGINES:
         return direction
     direction.lesson_theme = None
     direction.focus_letters = []
     direction.focus_words = []
     direction.voice_lines = []
+    direction.title = None
+    direction.visual_beats = []
+    direction.segment_plan = []
     if engine != "infographic_explainer":
         direction.fun_facts = []
         direction.segment_weights = []
-    cleaned: list[dict[str, Any]] = []
-    for beat in direction.visual_beats:
-        row = dict(beat)
-        if engine == "infographic_explainer":
-            row.pop("letter", None)
-            row.pop("phonics", None)
-            row.pop("voice_line", None)
-        else:
-            for key in _KIDS_BEAT_KEYS:
-                row.pop(key, None)
-        overlay = str(row.get("overlay_text") or row.get("line") or "")
-        if _ABC_OVERLAY.search(overlay):
-            row.pop("overlay_text", None)
-            row.pop("line", None)
-            row.pop("title", None)
-        if any(str(v).strip() for v in row.values() if v is not None):
-            cleaned.append(row)
-    direction.visual_beats = cleaned
-    direction.segment_plan = [dict(b) for b in cleaned]
+    else:
+        direction.segment_weights = []
     profile = dict(direction.audio_profile or {})
     if engine in VISUAL_ART_ENGINES:
         profile.pop("voice_rate", None)

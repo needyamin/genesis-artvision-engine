@@ -111,11 +111,12 @@ def test_suggest_uses_cache(tmp_path: Path):
         with patch("app.ai.advisor.chat_completion", return_value=fake) as mock_chat:
             first = suggest_for_spec(_spec(), config)
             assert first is not None
-            assert first.style == "minimal"
+            assert first.style == "cosmic"
+            assert first.param_overrides.get("speed") == 0.5
             assert mock_chat.call_count == 1
             second = suggest_for_spec(_spec(), config)
             assert second is not None
-            assert second.style == "minimal"
+            assert second.style == "cosmic"
             assert mock_chat.call_count == 1  # cache hit
 
 
@@ -221,8 +222,9 @@ def test_schema_v2_clamps_visual_audio_and_easing():
     assert bogus.grade is None
 
 
-def test_style_change_refreshes_multipliers():
+def test_chosen_style_and_engine_stay_locked():
     spec = _spec(
+        engine="particles",
         style="digital",
         params={
             "glow": 0.95,
@@ -232,12 +234,15 @@ def test_style_change_refreshes_multipliers():
             "style_multipliers": {"glow": 0.95, "speed": 1.4, "contrast": 0.95, "density": 0.5},
         },
     )
-    direction = parse_creative_direction({"style": "minimal"}, engine="particles")
+    direction = parse_creative_direction(
+        {"style": "minimal", "glow": 0.25},
+        engine="particles",
+        style="digital",
+    )
     apply_creative_direction(spec, direction)
-    assert spec.style == "minimal"
-    speed = spec.params["style_multipliers"]["speed"]
-    assert 0.2 <= speed <= 0.6
-    assert spec.params["animation_speed"] == speed
+    assert spec.engine == "particles"
+    assert spec.style == "digital"
+    assert spec.params["glow"] == 0.25
     assert spec.params["ai_applied"] is True
 
 
@@ -367,8 +372,7 @@ def test_offline_illustrator_and_realize(tmp_path: Path, monkeypatch: pytest.Mon
     )
     realize_visual_assets(spec)
     beat = spec.params["ai_visual_beats"][0]
-    assert Path(beat["image_path"]).is_file()
-    assert beat["overlay_text"] == "Night Star"
+    assert "image_path" not in beat
     parsed = offline_illustrator.parse_image_brief("a red apple in the garden", fallback_word="FUN")
     assert parsed["subject"] == "APPLE"
     assert parsed["color"] == "red"
@@ -423,7 +427,7 @@ def test_ai_overlay_on_abstract_frame(tmp_path: Path, monkeypatch: pytest.Monkey
     out = apply_ai_overlays(frame, spec, 0, 10)
     assert out.shape == frame.shape
     assert out.dtype == np.uint8
-    assert not np.array_equal(out, frame)
+    assert np.array_equal(out, frame)
 
 
 def test_load_dotenv_from_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -466,10 +470,8 @@ def test_visual_engine_strips_kids_direction():
     assert d.focus_words == []
     assert d.voice_lines == []
     assert d.fun_facts == []
-    assert all("letter" not in b and "word" not in b for b in d.visual_beats)
-    overlays = [b.get("overlay_text") for b in d.visual_beats]
-    assert "A is for Apple" not in overlays
-    assert "Deep Drift" in overlays
+    assert d.visual_beats == []
+    assert d.title is None
 
 
 def test_ai_does_not_switch_engine_or_inject_abc():
@@ -486,25 +488,59 @@ def test_ai_does_not_switch_engine_or_inject_abc():
     )
     apply_creative_direction(spec, direction)
     assert spec.engine == "particles"
+    assert spec.style == "cosmic"
     assert "focus_letters" not in spec.params
     assert "lesson_theme" not in spec.params
     assert "ai_voice_lines" not in spec.params
+    assert "ai_visual_beats" not in spec.params
+    assert "ai_title" not in spec.params
     assert spec.params.get("ai_applied") is True
 
 
 def test_advisor_prompt_matches_engine():
-    from app.ai.prompts import advisor_user_prompt
+    from app.ai.prompts import ENGINE_GUIDES, STYLE_GUIDES, advisor_user_prompt
 
     visual = advisor_user_prompt(
         seed=1, engine="galaxy", style="cosmic", duration=10, width=1920, height=1080, params={}
     )
-    assert "keep this engine" in visual.lower()
-    assert "abstract procedural art" in visual
-    assert "KIDS ALPHABET RULES" not in visual
+    assert "Engine=galaxy + Style=cosmic" in visual
+    assert "Galaxy / Starfield" in visual
+    assert "Cosmic:" in visual
+    assert "No titles" in visual or "no titles" in visual.lower()
+    assert '"visual_beats"' not in visual.split("Return JSON", 1)[-1]
     assert '"focus_letters"' not in visual.split("Return JSON", 1)[-1]
 
     abc = advisor_user_prompt(
-        seed=1, engine="alphabet_cartoon", style="playful", duration=10, width=1920, height=1080, params={"mode": "lesson"}
+        seed=1,
+        engine="alphabet_cartoon",
+        style="playful",
+        duration=10,
+        width=1920,
+        height=1080,
+        params={"mode": "lesson"},
     )
-    assert "KIDS ALPHABET RULES" in abc
+    assert "Engine=alphabet_cartoon + Style=playful" in abc
+    assert "letter" in abc.lower()
     assert "alphabet_cartoon" in abc
+
+    doodle = advisor_user_prompt(
+        seed=1, engine="kids_doodles", style="organic", duration=10, width=1920, height=1080, params={}
+    )
+    assert "Engine=kids_doodles + Style=organic" in doodle
+    assert "Shapes & Colors" in doodle
+    assert "full alphabet A–Z" in doodle or "full alphabet" in doodle.lower()
+    assert '"focus_letters"' not in doodle.split("Return JSON", 1)[-1]
+
+    playful_galaxy = advisor_user_prompt(
+        seed=1, engine="galaxy", style="playful", duration=10, width=1920, height=1080, params={}
+    )
+    assert "Playful look only" in playful_galaxy
+    assert "KIDS ALPHABET RULES" not in playful_galaxy
+
+    for engine in ENGINE_GUIDES:
+        for style in STYLE_GUIDES:
+            text = advisor_user_prompt(
+                seed=3, engine=engine, style=style, duration=8, width=640, height=360, params={}
+            )
+            assert f"Engine={engine} + Style={style}" in text
+            assert ENGINE_GUIDES[engine].split(":")[0] in text or engine in text

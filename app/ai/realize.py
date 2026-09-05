@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from app.art.education_content import KIDS_EDUCATION_ENGINES
 from app.art.offline_illustrator import ensure_brief_image, parse_image_brief
 from app.utils.logger import get_logger
 
@@ -70,10 +71,13 @@ def realize_visual_assets(
     Runs on the worker thread. Emits per-beat GUI progress; does not block Qt.
     """
     params = spec.params or {}
+    if getattr(spec, "engine", "") not in KIDS_EDUCATION_ENGINES:
+        return spec
     if not (
         params.get("ai_applied")
         or params.get("ai_visual_beats")
         or params.get("ai_segment_plan")
+        or (isinstance(params.get("education_lesson"), dict) and params["education_lesson"].get("segments"))
     ):
         return spec
     lesson = params.get("education_lesson")
