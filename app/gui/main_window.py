@@ -71,7 +71,6 @@ class GenerateWorker(QThread):
                 random_resolution=self.options.get("random_resolution", False),
                 random_fps=self.options.get("random_fps", False),
                 random_duration=self.options.get("random_duration", False),
-                complete_alphabet=self.options.get("complete_alphabet", False),
                 seed=self.options.get("seed"),
             )
             self.finished_batch.emit(results)
@@ -231,14 +230,6 @@ class MainWindow(QMainWindow):
         company.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.addWidget(company)
 
-        hint = QLabel(
-            "Click Generate — the app invents the art, colors, motion, and soundtrack for you. "
-            "No topic, image, or prompt needed."
-        )
-        hint.setObjectName("HintLabel")
-        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint.setWordWrap(True)
-        header.addWidget(hint)
         root.addLayout(header)
 
         # Settings: fixed height section (2×2 grid) — always fully visible
@@ -317,7 +308,7 @@ class MainWindow(QMainWindow):
 
         status = QStatusBar()
         self.setStatusBar(status)
-        self.statusBar().showMessage("Ready — pick settings or leave defaults, then press Generate")
+        self.statusBar().showMessage("Ready")
 
     def _set_running(self, running: bool) -> None:
         self.generate_btn.setEnabled(not running)
@@ -340,7 +331,7 @@ class MainWindow(QMainWindow):
         else:
             short = msg.split("(")[0].strip()
             self.statusBar().showMessage(f"Ready · FFmpeg found · {short}")
-            self.progress.update_progress(status="Ready — press Generate to create a video")
+            self.progress.update_progress(status="Ready")
 
     @Slot()
     def start_generate(self) -> None:
@@ -351,16 +342,9 @@ class MainWindow(QMainWindow):
         self._video_index = 0
         self._video_total = None if opts["unlimited"] else opts["count"]
         self.progress.reset()
+        self.progress.set_ai_visible(bool(opts.get("ai_enabled")))
         count_txt = "unlimited" if opts["unlimited"] else str(opts["count"])
         self.progress.update_progress(status=f"Starting… ({count_txt})")
-        if opts.get("ai_enabled"):
-            self.progress.set_ai_log(
-                "AI creative advisor is on.\n"
-                "Suggestions will appear here as soon as they arrive.\n"
-                "The window stays responsive — you can Pause or Stop anytime."
-            )
-        else:
-            self.progress.set_ai_log("AI advisor off — this video uses the offline randomizer.")
         self.preview.clear()
         self._set_running(True)
         self.statusBar().showMessage("Generating…")
@@ -440,10 +424,12 @@ class MainWindow(QMainWindow):
         style = payload.get("style", "?")
         seed = payload.get("seed", "?")
         self.progress.update_progress(current=f"{engine}  ·  {style}", seed=str(seed))
+        if status == "off":
+            return
         if status == "asking":
             self._start_ai_wait(message)
             self.progress.set_ai_log(message)
-            self.progress.update_progress(status="AI creative advisor thinking…")
+            self.progress.update_progress(status="AI thinking…")
             self.statusBar().showMessage("AI advisor working…")
             return
         self._stop_ai_wait()
@@ -479,12 +465,9 @@ class MainWindow(QMainWindow):
     def _tick_ai_wait(self) -> None:
         elapsed = time.perf_counter() - self._ai_wait_started
         dots = "." * (1 + int(elapsed) % 3)
-        self.progress.update_progress(status=f"AI creative advisor thinking{dots} {elapsed:.0f}s")
+        self.progress.update_progress(status=f"AI thinking{dots} {elapsed:.0f}s")
         self.statusBar().showMessage(f"AI advisor working… {elapsed:.0f}s")
-        self.progress.set_ai_log(
-            f"{self._ai_wait_message}\n\n"
-            f"Waiting {elapsed:.0f}s — window stays responsive. Pause or Stop still work."
-        )
+        self.progress.set_ai_log(f"{self._ai_wait_message}\nWaiting {elapsed:.0f}s")
 
     @Slot(list)
     def on_finished(self, results: list) -> None:
@@ -563,10 +546,7 @@ class MainWindow(QMainWindow):
         self._batch_started = time.perf_counter()
         self._set_running(True)
         self.progress.update_progress(status=f"Recreating seed {seed}…")
-        if opts.get("ai_enabled"):
-            self.progress.set_ai_log(
-                f"Recreating seed {seed}.\nAI suggestions will appear here if the advisor is on."
-            )
+        self.progress.set_ai_visible(bool(opts.get("ai_enabled")))
         self.worker = GenerateWorker(self.factory, opts)
         self.worker.progress.connect(self.on_progress, Qt.ConnectionType.QueuedConnection)
         self.worker.finished_batch.connect(self.on_finished, Qt.ConnectionType.QueuedConnection)
@@ -597,6 +577,6 @@ class MainWindow(QMainWindow):
             "Offline procedural art video generator.\n"
             "Optional OpenRouter advisor suggests creative direction only.\n"
             "Frames, audio, and FFmpeg stay local.\n\n"
-            "Just press Generate — the engine decides the rest."
+            "Pick an engine, then Generate."
         )
         box.exec()

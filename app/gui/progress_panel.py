@@ -35,7 +35,7 @@ class ProgressPanel(QWidget):
         self.bar.setMinimumHeight(24)
         inner.addWidget(self.bar)
 
-        self.status = QLabel("Ready when you are")
+        self.status = QLabel("Ready")
         self.status.setObjectName("StatValue")
         self.status.setWordWrap(True)
         inner.addWidget(self.status)
@@ -48,20 +48,18 @@ class ProgressPanel(QWidget):
         self.time = self._row(grid, "Elapsed")
         inner.addLayout(grid)
 
-        ai_label = QLabel("AI creative director")
-        ai_label.setObjectName("StatKey")
-        inner.addWidget(ai_label)
+        self.ai_label = QLabel("AI")
+        self.ai_label.setObjectName("StatKey")
+        inner.addWidget(self.ai_label)
         self.ai_log = QPlainTextEdit()
         self.ai_log.setObjectName("AiLog")
         self.ai_log.setReadOnly(True)
-        self.ai_log.setPlaceholderText(
-            "When the AI advisor is on, suggestions appear here while they load — "
-            "the rest of the window stays responsive."
-        )
+        self.ai_log.setPlaceholderText("AI suggestions")
         self.ai_log.setMinimumHeight(72)
         self.ai_log.setMaximumHeight(160)
         self.ai_log.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         inner.addWidget(self.ai_log, 1)
+        self.set_ai_visible(False)
 
         layout.addWidget(box)
 
@@ -85,8 +83,15 @@ class ProgressPanel(QWidget):
         self.seed.setText("—")
         self.video.setText("—")
         self.time.setText("—")
-        self.status.setText("Ready when you are")
-        self.set_ai_log("AI idle — turn on AI creative advisor in Extras to see suggestions here.")
+        self.status.setText("Ready")
+        if self.ai_log.isVisible():
+            self.set_ai_log("")
+
+    def set_ai_visible(self, visible: bool) -> None:
+        self.ai_label.setVisible(visible)
+        self.ai_log.setVisible(visible)
+        if not visible:
+            self.set_ai_log("")
 
     def set_ai_log(self, text: str) -> None:
         self.ai_log.setPlainText(text or "")

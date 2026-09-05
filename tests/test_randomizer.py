@@ -56,3 +56,41 @@ def test_forced_engine_style():
     assert (spec.width, spec.height) == (1080, 1080)
     assert spec.fps == 24
     assert spec.duration == 15
+
+
+def test_random_engine_stays_on_visual_art():
+    cfg = load_config()
+    rnd = Randomizer(cfg)
+    engines = {
+        rnd.create_project(seed=s, resolution="1280x720", fps=30, duration=10).engine
+        for s in range(1, 80)
+    }
+    kids = {"alphabet_cartoon", "hand_art", "kids_doodles", "infographic_explainer"}
+    assert engines.isdisjoint(kids)
+    assert engines <= {"particles", "galaxy", "waves", "tunnel"}
+
+
+def test_explicit_education_engine_is_kept():
+    cfg = load_config()
+    rnd = Randomizer(cfg)
+    spec = rnd.create_project(
+        seed=7,
+        engine="alphabet_cartoon",
+        style="cosmic",
+        resolution="1280x720",
+        fps=30,
+        duration=10,
+    )
+    assert spec.engine == "alphabet_cartoon"
+
+
+def test_playful_style_can_pick_kids_engines():
+    cfg = load_config()
+    rnd = Randomizer(cfg)
+    engines = {
+        rnd.create_project(
+            seed=s, style="playful", resolution="1280x720", fps=30, duration=10
+        ).engine
+        for s in range(1, 40)
+    }
+    assert engines <= {"alphabet_cartoon", "kids_doodles", "hand_art"}

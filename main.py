@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--complete-az",
         action="store_true",
-        help="ABC Educational: teach every letter A–Z (duration grows to fit slow kids voice)",
+        help="With --engine alphabet_cartoon: teach every letter A–Z (CLI only)",
     )
     return parser
 
@@ -132,7 +132,6 @@ def run_cli(args: argparse.Namespace) -> int:
 
     if getattr(args, "complete_az", False):
         overrides["complete_alphabet"] = True
-        overrides["engine"] = "alphabet_cartoon"
 
     factory = VideoFactory(config)
     results = factory.generate_batch(**{k: v for k, v in overrides.items() if v is not None})

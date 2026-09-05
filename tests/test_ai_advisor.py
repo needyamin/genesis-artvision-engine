@@ -208,11 +208,12 @@ def test_schema_v2_clamps_visual_audio_and_easing():
     assert d.easing == "snappy"
     assert d.camera_feel == "drift"
     assert d.grade == "cinematic"
-    assert d.segment_weights == [3.0, 1.0, 2.0]
     assert d.audio_profile["tempo_bpm"] == 180.0
     assert d.audio_profile["energy"] == 1.0
     assert d.audio_profile["scale"] == "soft_minor"
     assert "unknown" not in d.audio_profile
+    assert "voice_rate" not in d.audio_profile
+    assert d.segment_weights == []
     assert d.param_overrides["glow"] == 0.2
     assert "not_a_param" not in d.param_overrides
     bogus = parse_creative_direction({"easing": "robotic", "grade": "hdr"}, engine="particles")
@@ -434,3 +435,76 @@ def test_load_dotenv_from_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     loaded = load_dotenv(env_file, override=True)
     assert loaded == env_file
     assert os.environ.get("OPENROUTER_API_KEY") == "sk-or-v1-test-key"
+
+
+def test_visual_engine_strips_kids_direction():
+    d = parse_creative_direction(
+        {
+            "lesson_theme": "phonics",
+            "focus_letters": ["A", "B"],
+            "focus_words": ["APPLE"],
+            "voice_lines": ["A is for apple"],
+            "fun_facts": ["Apples are fruit."],
+            "visual_beats": [
+                {
+                    "image_brief": "a red apple in sunshine",
+                    "overlay_text": "A is for Apple",
+                    "letter": "A",
+                    "word": "APPLE",
+                    "voice_line": "A is for apple",
+                },
+                {
+                    "image_brief": "deep blue nebula clouds",
+                    "overlay_text": "Deep Drift",
+                },
+            ],
+        },
+        engine="galaxy",
+    )
+    assert d.lesson_theme is None
+    assert d.focus_letters == []
+    assert d.focus_words == []
+    assert d.voice_lines == []
+    assert d.fun_facts == []
+    assert all("letter" not in b and "word" not in b for b in d.visual_beats)
+    overlays = [b.get("overlay_text") for b in d.visual_beats]
+    assert "A is for Apple" not in overlays
+    assert "Deep Drift" in overlays
+
+
+def test_ai_does_not_switch_engine_or_inject_abc():
+    spec = _spec(engine="particles", params={"count": 400})
+    direction = parse_creative_direction(
+        {
+            "style": "playful",
+            "lesson_theme": "abc_complete",
+            "focus_letters": ["A", "Z"],
+            "voice_lines": ["Let's learn A to Z"],
+            "visual_beats": [{"overlay_text": "A is for Ant", "letter": "A", "image_brief": "an ant"}],
+        },
+        engine="particles",
+    )
+    apply_creative_direction(spec, direction)
+    assert spec.engine == "particles"
+    assert "focus_letters" not in spec.params
+    assert "lesson_theme" not in spec.params
+    assert "ai_voice_lines" not in spec.params
+    assert spec.params.get("ai_applied") is True
+
+
+def test_advisor_prompt_matches_engine():
+    from app.ai.prompts import advisor_user_prompt
+
+    visual = advisor_user_prompt(
+        seed=1, engine="galaxy", style="cosmic", duration=10, width=1920, height=1080, params={}
+    )
+    assert "keep this engine" in visual.lower()
+    assert "abstract procedural art" in visual
+    assert "KIDS ALPHABET RULES" not in visual
+    assert '"focus_letters"' not in visual.split("Return JSON", 1)[-1]
+
+    abc = advisor_user_prompt(
+        seed=1, engine="alphabet_cartoon", style="playful", duration=10, width=1920, height=1080, params={"mode": "lesson"}
+    )
+    assert "KIDS ALPHABET RULES" in abc
+    assert "alphabet_cartoon" in abc

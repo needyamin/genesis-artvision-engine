@@ -82,8 +82,6 @@ class VideoFactory:
         on_progress: ProgressFn | None = None,
         output_dir: str | Path | None = None,
     ) -> GenerateResult:
-        if complete_alphabet:
-            engine = "alphabet_cartoon"
         spec = self.randomizer.create_project(
             seed=seed,
             engine=engine,
@@ -97,7 +95,7 @@ class VideoFactory:
             random_fps=random_fps,
             random_duration=random_duration,
         )
-        if complete_alphabet:
+        if complete_alphabet and spec.engine == "alphabet_cartoon":
             spec.params["complete_alphabet"] = True
             spec.params["include_numbers"] = False
             spec.params["mode"] = "lesson"
@@ -167,9 +165,9 @@ class VideoFactory:
                 spec.params["_duration"] = spec.duration
 
             # Kids educational engines: shared lesson for video + audio
-            if spec.params.get("complete_alphabet"):
-                spec.engine = "alphabet_cartoon"
-                spec.params["complete_alphabet"] = True
+            if spec.engine != "alphabet_cartoon":
+                spec.params.pop("complete_alphabet", None)
+            elif spec.params.get("complete_alphabet"):
                 spec.params["include_numbers"] = False
                 spec.params["mode"] = "lesson"
                 spec.params["lesson_theme"] = "abc_complete"

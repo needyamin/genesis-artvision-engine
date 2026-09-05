@@ -33,10 +33,10 @@ ENGINE_LABELS: dict[str, str] = {
     "galaxy": "Galaxy / Starfield",
     "waves": "Waves / Liquid",
     "tunnel": "Tunnel",
-    "alphabet_cartoon": "ABC Educational (Kids Learning)",
-    "hand_art": "Draw Along (Hand Art Lessons)",
-    "kids_doodles": "Shapes & Colors (Kids Learning)",
-    "infographic_explainer": "Science & Fact Explainer (Documentary HUD)",
+    "alphabet_cartoon": "ABC Educational",
+    "hand_art": "Draw Along",
+    "kids_doodles": "Shapes & Colors",
+    "infographic_explainer": "Science Explainer",
 }
 
 STYLE_LABELS: dict[str, str] = {
@@ -45,8 +45,8 @@ STYLE_LABELS: dict[str, str] = {
     "minimal": "Minimal",
     "organic": "Organic",
     "digital": "Digital",
-    "playful": "Playful (Kids)",
-    "documentary": "Documentary HUD",
+    "playful": "Playful",
+    "documentary": "Documentary",
 }
 
 
@@ -140,43 +140,30 @@ class SettingsPanel(QWidget):
         ag.setVerticalSpacing(8)
 
         self.art_mode = QComboBox()
-        self.art_mode.addItem("Random (recommended)", userData=None)
+        self.art_mode.addItem("Random", userData=None)
         for eng in self.config.get("engines", []):
             self.art_mode.addItem(engine_label(str(eng)), userData=str(eng))
-        self.art_mode.setToolTip("Choose an art engine, or leave Random for variety.")
+        self.art_mode.setToolTip(
+            "What to generate. Random uses visual art only. "
+            "Pick ABC, Draw Along, Shapes & Colors, or Science Explainer for those lessons."
+        )
         self.art_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.style = QComboBox()
-        self.style.addItem("Random (recommended)", userData=None)
+        self.style.addItem("Random", userData=None)
         for st in self.config.get("styles", []):
             self.style.addItem(style_label(str(st)), userData=str(st))
-        self.style.setToolTip("Visual mood. Random picks a style automatically.")
-        self.style.setEnabled(False)
+        self.style.setToolTip("Look and colors. Leave on Random unless you want a specific mood.")
         self.style.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        self.random_style = QCheckBox("Auto-choose style")
-        self.random_style.setChecked(True)
-        self.random_style.setToolTip("When checked, style is randomized every video.")
-        self.random_style.toggled.connect(lambda on: self.style.setEnabled(not on))
-
-        self.complete_az = QCheckBox("Complete A to Z")
-        self.complete_az.setToolTip(
-            "ABC Educational: teach every letter A through Z in order. "
-            "The video grows as long as needed so each letter is spoken slowly "
-            "and stays on screen until the voice finishes."
-        )
-        self.complete_az.toggled.connect(self._on_complete_az)
-        self.art_mode.currentIndexChanged.connect(self._sync_complete_az)
 
         ag.addWidget(QLabel("Engine"), 0, 0)
         ag.addWidget(self.art_mode, 0, 1)
-        ag.addWidget(self.random_style, 1, 0)
+        ag.addWidget(QLabel("Style"), 1, 0)
         ag.addWidget(self.style, 1, 1)
-        ag.addWidget(self.complete_az, 2, 0, 1, 2)
         ag.setColumnStretch(1, 1)
 
         # ---- Batch (bottom-left) ----
-        batch_box = QGroupBox("How many videos?")
+        batch_box = QGroupBox("Batch")
         bg = QVBoxLayout(batch_box)
         bg.setContentsMargins(10, 8, 10, 8)
         bg.setSpacing(8)
@@ -205,17 +192,17 @@ class SettingsPanel(QWidget):
         self.unlimited.toggled.connect(self._on_unlimited)
         bg.addWidget(self.unlimited)
 
-        # ---- Extras (bottom-right) ----
-        extras = QGroupBox("Extras")
+        # ---- Output (bottom-right) ----
+        extras = QGroupBox("Output")
         eg = QVBoxLayout(extras)
         eg.setContentsMargins(10, 8, 10, 8)
         eg.setSpacing(8)
-        self.proc_audio = QCheckBox("Add soundtrack")
+        self.proc_audio = QCheckBox("Soundtrack")
         self.proc_audio.setChecked(bool(self.config.get("audio", {}).get("enabled", True)))
-        self.proc_audio.setToolTip("Generate pleasant procedural audio and mix it into the MP4.")
-        self.gen_thumb = QCheckBox("Save thumbnail image")
+        self.proc_audio.setToolTip("Mix audio into the MP4.")
+        self.gen_thumb = QCheckBox("Thumbnail")
         self.gen_thumb.setChecked(bool(self.config.get("output", {}).get("thumbnail", True)))
-        self.gen_thumb.setToolTip("Also save a JPG preview next to each video.")
+        self.gen_thumb.setToolTip("Save a JPG preview next to each video.")
         self.random_colors = QCheckBox()
         self.random_colors.setChecked(True)
         self.random_colors.hide()
@@ -224,24 +211,15 @@ class SettingsPanel(QWidget):
         self.random_anim.hide()
 
         ai_cfg = self.config.get("ai") or {}
-        self.ai_advisor = QCheckBox("AI creative advisor (OpenRouter)")
+        self.ai_advisor = QCheckBox("AI advisor")
         self.ai_advisor.setChecked(bool(ai_cfg.get("enabled") and ai_cfg.get("per_video")))
-        self.ai_advisor.setToolTip(
-            "Optional: ask OpenRouter for JSON creative direction before each render. "
-            "Suggestions appear live in the Progress panel (AI creative director). "
-            "The GUI stays responsive while waiting. "
-            "Put OPENROUTER_API_KEY in a root .env file (see .env.example). "
-            "Prefer CLI --curate for cheaper offline catalog expansion."
-        )
+        self.ai_advisor.setToolTip("Optional OpenRouter suggestions. Needs OPENROUTER_API_KEY in .env.")
         self.ai_status = QLabel("")
-        self.ai_status.setWordWrap(True)
-        self._refresh_ai_status()
-        self.ai_advisor.toggled.connect(lambda _=False: self._refresh_ai_status())
+        self.ai_status.hide()
 
         eg.addWidget(self.proc_audio)
         eg.addWidget(self.gen_thumb)
         eg.addWidget(self.ai_advisor)
-        eg.addWidget(self.ai_status)
         eg.addStretch(1)
 
         root.addWidget(video_box, 0, 0)
@@ -261,55 +239,9 @@ class SettingsPanel(QWidget):
     def _on_unlimited(self, on: bool) -> None:
         self.count.setEnabled(not on)
 
-    def _on_complete_az(self, on: bool) -> None:
-        if on:
-            idx = self.art_mode.findData("alphabet_cartoon")
-            if idx >= 0:
-                self.art_mode.blockSignals(True)
-                self.art_mode.setCurrentIndex(idx)
-                self.art_mode.blockSignals(False)
-            if self.random_style.isChecked():
-                st = self.style.findData("playful")
-                if st >= 0:
-                    self.style.setCurrentIndex(st)
-        self._sync_duration_hint()
-
-    def _sync_complete_az(self) -> None:
-        engine = self.art_mode.currentData()
-        if engine not in (None, "alphabet_cartoon") and self.complete_az.isChecked():
-            self.complete_az.blockSignals(True)
-            self.complete_az.setChecked(False)
-            self.complete_az.blockSignals(False)
-        self._sync_duration_hint()
-
-    def _sync_duration_hint(self) -> None:
-        if self.complete_az.isChecked():
-            self.duration.setToolTip(
-                "A to Z mode: a short duration is extended automatically so every letter is taught."
-            )
-        else:
-            self.duration.setToolTip("Length of each generated video in seconds.")
-
-    def _refresh_ai_status(self) -> None:
-        from app.ai.client import ENV_API_KEY, has_api_key
-
-        if not self.ai_advisor.isChecked():
-            self.ai_status.setText("AI off — fully offline.")
-            return
-        if has_api_key(self.config):
-            model = (self.config.get("ai") or {}).get("model", "openrouter")
-            self.ai_status.setText(
-                f"Key found · {model}. Suggestions show in Progress while generating."
-            )
-        else:
-            self.ai_status.setText(f"Missing {ENV_API_KEY} — add it to root .env")
-
     def values(self) -> dict[str, Any]:
         eng_val = self.art_mode.currentData()
-        if self.random_style.isChecked():
-            style_val = None
-        else:
-            style_val = self.style.currentData()
+        style_val = self.style.currentData()
 
         dur = self.duration.currentText()
         res_data = self.resolution.currentData()
@@ -330,5 +262,4 @@ class SettingsPanel(QWidget):
             "thumbnail": self.gen_thumb.isChecked(),
             "ai_enabled": self.ai_advisor.isChecked(),
             "ai_per_video": self.ai_advisor.isChecked(),
-            "complete_alphabet": self.complete_az.isChecked(),
         }

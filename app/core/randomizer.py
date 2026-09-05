@@ -13,6 +13,10 @@ from app.art.palette import Palette, generate_palette
 from app.art.styles import list_styles, preferred_engines, sample_edit_look, sample_style_multiplier
 from app.utils.validation import parse_resolution
 
+# Random Engine (no explicit pick) uses these only. Education / ABC / explainer
+# run when the user chooses that engine, or a style that prefers them.
+VISUAL_ART_ENGINES = ("particles", "galaxy", "waves", "tunnel")
+
 
 @dataclass
 class ProjectSpec:
@@ -176,10 +180,17 @@ class Randomizer:
         seed = int(seed) if seed is not None else self.new_seed()
         rng = np.random.default_rng(seed)
 
+        style_chosen = style is not None
         style_name = style or str(rng.choice(self.styles))
-        preferred = preferred_engines(style_name)
-        engine_pool = [e for e in (preferred or self.engines) if e in self.engines] or self.engines
-        engine_name = engine or str(rng.choice(engine_pool))
+        if engine:
+            engine_name = engine
+        elif style_chosen:
+            preferred = preferred_engines(style_name)
+            engine_pool = [e for e in (preferred or self.engines) if e in self.engines] or self.engines
+            engine_name = str(rng.choice(engine_pool))
+        else:
+            visual = [e for e in VISUAL_ART_ENGINES if e in self.engines] or self.engines
+            engine_name = str(rng.choice(visual))
 
         if random_resolution or resolution in (None, "random", "Random"):
             res = str(rng.choice(self.config.get("resolutions", ["1920x1080"])))
