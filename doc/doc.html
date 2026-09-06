@@ -204,7 +204,7 @@
     <article>
       <p class="pill">Product article</p>
       <p>Genesis Artvision Engine is desktop software from <strong>ANSNEW TECH</strong>. You do not import clips, write a script, or pick a beat of music. You press <strong>GENERATE VIDEO</strong>. The factory rolls a seed, chooses an art engine and a visual style, paints every frame procedurally, writes a soundtrack, and pipes the result into FFmpeg as an MP4.</p>
-      <p>That is the whole promise: <em>invention, not assembly</em>. The same program can emit a picture-book story a child can follow, a classroom how-it-works diagram, or a kinetic brief about something trending this week. Nothing in the finished file is downloaded as stock video. Pictures are drawn locally. Voice is Windows text-to-speech when it is available, otherwise an offline voice.</p>
+      <p>That is the whole promise: <em>invention, not assembly</em>. The same program can emit a picture-book story a child can follow, a classroom how-it-works diagram, or a kinetic brief from an evergreen or AI-suggested topic. Nothing in the finished file is downloaded as stock video. Pictures are drawn locally. Voice is Windows text-to-speech when it is available, otherwise an offline voice.</p>
 
       <h2 id="idea">The idea</h2>
       <p>Most “AI video” tools send your prompt to a cloud model and wait for pixels to come back. Genesis is the opposite shape. It is a <strong>random art video factory</strong>. Random does not mean chaotic. It means a deterministic integer seed expands into a full project specification: resolution, duration, palette, motion, story or topic, camera, grade, and audio profile.</p>
@@ -213,7 +213,7 @@
       <ul>
         <li><strong>Kids storybook</strong> — short picture-book pages with matching text, picture, and voice.</li>
         <li><strong>Everyday education</strong> — classroom diagrams that explain how rain, hearts, lamps, and toasters work.</li>
-        <li><strong>Trending briefs</strong> — kinetic type about a current-web topic, with a calm narrator.</li>
+        <li><strong>Trending briefs</strong> — kinetic type about an evergreen or AI-suggested topic, with a calm narrator.</li>
       </ul>
 
       <h2 id="who">Who it is for</h2>
@@ -225,12 +225,13 @@
       <ol>
         <li><strong>Seed.</strong> A new integer, or one you type, or one replayed from History.</li>
         <li><strong>Randomizer.</strong> Builds a <code>ProjectSpec</code>: engine, style, palette, per-engine parameters, duration, fps, resolution.</li>
-        <li><strong>Optional advisor.</strong> If OpenRouter is enabled, a JSON creative direction may bias theme, briefs, and on-screen titles. It never paints the movie in the cloud.</li>
+        <li><strong>Optional advisor.</strong> If OpenRouter is enabled, a cached JSON creative direction may bias theme, shot purpose, hierarchy, emphasis, transitions, sound cues, and on-screen titles. It never paints the movie in the cloud.</li>
         <li><strong>Lesson or topic.</strong> Kids Storybook builds story pages. How It Works and Trending Brief build a shared topic for picture and voice.</li>
         <li><strong>Offline pictures.</strong> Word cards and suggested scenes are drawn with Pillow on disk.</li>
-        <li><strong>Audio.</strong> Procedural music, kids narration, or documentary speech, written as WAV.</li>
-        <li><strong>Render.</strong> Each frame is drawn, graded, faded, then piped as raw RGB into FFmpeg with the WAV.</li>
-        <li><strong>Output.</strong> An MP4 (and usually a thumbnail JPEG) lands in <code>output/</code>. Temp files are cleaned on success. If YouTube upload is on, the official Data API sends that file to your connected channel.</li>
+        <li><strong>Editorial plan.</strong> Narration measurements and semantic emphasis become a timed shot plan with transitions, camera intent, captions, and audio cues.</li>
+        <li><strong>Audio.</strong> Procedural music and narration are smoothly ducked, limited, and normalized toward the configured loudness target.</li>
+        <li><strong>Render.</strong> Each frame is drawn, moved, transitioned, graded, then piped as raw RGB into FFmpeg with the WAV.</li>
+        <li><strong>QC and output.</strong> Muxed streams, exact frame timing, caption overlap, loudness, silence, clipping, sampled black/frozen frames, and manifest integrity are checked before MP4, SRT captions, JSON manifest, and thumbnail are finalized.</li>
       </ol>
       <p>The GUI stays responsive because generate runs on a worker thread. Progress shows phase, seed, engine, and — when the advisor is on — what the offline illustrator is drawing. Speech timing holds each picture until that line of voice finishes, so the next card does not appear while the narrator is still talking.</p>
 
@@ -241,7 +242,7 @@
         <tbody>
           <tr><td><code>kids_storybook</code></td><td>Kids Storybook</td><td>Storybook</td><td>Picture-book pages: title, headline, drawn noun, caption, slow kids voice.</td></tr>
           <tr><td><code>how_it_works</code></td><td>How It Works</td><td>Classroom</td><td>Everyday processes on a whiteboard: water cycle, heartbeat, electricity, rainbows.</td></tr>
-          <tr><td><code>trend_brief</code></td><td>Trending Brief</td><td>Pulse</td><td>Kinetic type about a current-web topic, with a ticker and fact beats.</td></tr>
+          <tr><td><code>trend_brief</code></td><td>Trending Brief</td><td>Pulse</td><td>Kinetic type about an evergreen or AI-suggested topic, with a ticker and fact beats.</td></tr>
         </tbody>
       </table>
 
@@ -255,7 +256,7 @@
       <p>Audio is a documentary path — slower, lower pitch than kids TTS, mixed over a restrained bed. Style <strong>Classroom</strong> is the default look.</p>
 
       <h2 id="pulse">Trending brief</h2>
-      <p>Trending Brief is kinetic type about something that feels current on the web this week. The engine paints the brief itself: ticker, headline, fact beats. Style <strong>Pulse</strong> is the matching look — faster, punchier, neon accents.</p>
+      <p>Trending Brief is kinetic type built from an offline catalog or optional AI creative direction. The engine paints the brief itself: ticker, headline, fact beats. It does not currently collect or verify live web sources. Style <strong>Pulse</strong> is the matching look — faster, punchier, neon accents.</p>
 
       <h2 id="look">Styles and finishing</h2>
       <p>Three named styles bias glow, speed, contrast, and which engine they like:</p>
@@ -266,6 +267,7 @@
       </ul>
       <p>If you pick an engine and leave style on Random, the matching look is used. If you pick both by hand, the engine still owns the content; style only changes grade and motion.</p>
       <p>After the engine draws a frame, a shared finish pass can apply grade, vignette, grain, a gentle push-in, and master fades. Kids Storybook stays readable: static camera, no grain soup.</p>
+      <p>The Output panel offers Draft, Standard, and Master edit presets plus caption mode and edit intensity. The shared director uses fitted multiline typography, shot-local easing, narration-aware pacing, true two-scene dissolve/push/flash/page-turn transitions, draw-on diagrams, layered Pulse depth, and separate landscape/portrait/square safe layouts.</p>
 
       <h2 id="audio">Sound and voice</h2>
       <p>There is no requirement to drop MP3s into a folder. The factory writes WAV at 44.1 kHz.</p>
@@ -273,16 +275,16 @@
         <li><strong>Kids Storybook:</strong> soft pad, page chimes, and slow narration aligned to story pages.</li>
         <li><strong>How It Works / Trending Brief:</strong> calmer speech mixed under a quieter bed.</li>
       </ul>
-      <p>If audio generation fails, the video can still encode silent. Check <code>logs/</code>. Disable audio in the GUI or with <code>--no-audio</code> when you only need picture. Kids and classroom cards hold on screen until that spoken line ends.</p>
+      <p>If requested audio generation fails, the export stops instead of silently presenting an unfinished mute file. Disable audio in the GUI or with <code>--no-audio</code> when you intentionally need picture only. Kids and classroom cards hold on screen until that spoken line ends.</p>
 
       <h2 id="ai">Optional AI advisor</h2>
-      <p>OpenRouter is <strong>off by default</strong>. When you turn it on, it is a creative director, not a renderer. It returns JSON: possible story or topic title, short voice lines, image briefs, overlay titles. Then:</p>
+      <p>OpenRouter is <strong>off by default</strong>. When you turn it on, it is a creative director, not a renderer. It returns validated JSON for story/topic text, shot purpose, hierarchy, emphasis, transition intent, procedural sound cues, image briefs, and overlay titles. Prompt plans are cached by prompt and model. Then:</p>
       <ol>
         <li>The <strong>offline illustrator</strong> paints those briefs with Pillow into <code>data/ai_scenes/</code>.</li>
         <li>Each engine still paints its own frames. A story stays a story; a diagram stays a diagram.</li>
         <li>Same seed hits a disk cache under <code>data/ai_cache/</code> so you are not billed twice for a reprint.</li>
       </ol>
-      <p>Put <code>OPENROUTER_API_KEY</code> in a root <code>.env</code> copied from <code>.env.example</code>. Never commit <code>.env</code>. Cheapest path: run <code>python main.py --curate</code> once, then generate offline.</p>
+      <p>Put <code>OPENROUTER_API_KEY</code> in a root <code>.env</code> copied from <code>.env.example</code>. Never commit <code>.env</code>. The <code>--curate</code> command writes a catalog file, but the current render engines still use embedded catalogs. Runtime public-feed ingestion and cited source provenance belong to the next content-source milestone.</p>
       <p>Per-video advisor: check <strong>AI advisor</strong> in the Output panel, or <code>python main.py --generate --ai --engine kids_storybook</code>. If a model returns HTTP 402, add credits or stay on <code>openai/gpt-4o-mini</code> in <code>config.yaml</code>.</p>
 
       <h2 id="prompt">Prompt window</h2>
@@ -299,14 +301,14 @@
       <p>After encode, a <strong>result card</strong> shows the thumbnail, seed, local path, and either the channel plus a <code>youtu.be</code> link or a short API fix — never a raw 403 blob. If the API is off for that Cloud project, enable it, wait a few minutes, and generate again; the MP4 is already in <code>output/</code>. Wrong channel: Connect / switch and pick a different Brand Account. CLI: <code>python main.py --generate --youtube</code> after you have connected in the GUI.</p>
 
       <h2 id="studio">Dark studio GUI</h2>
-      <p>The window is the same deep navy as the live preview (<code>#0f1c24</code>), with teal generate and ink cards. A header holds the app icon, <strong>GENESIS ARTVISION</strong> / ANSNEW TECH, and a dark menu so Windows does not paint a light strip on top.</p>
+      <p>The Genesis interface uses a balanced two-pane production layout in deep navy and teal. A compact three-column control deck across the top keeps Video, Creative, Editing, Batch, Delivery, and YouTube settings visible without scrolling. Below it, Activity and QC share the workspace with an aspect-correct preview, so the monitor does not overpower the controls. Window geometry and pane positions persist between sessions.</p>
       <ul>
         <li><strong>File</strong> — open output, history, clean temp files.</li>
         <li><strong>Prompt</strong> — write a brief (<kbd>Ctrl+P</kbd>).</li>
         <li><strong>YouTube</strong> — connect or switch, which channel, Studio, disconnect.</li>
         <li><strong>Help</strong> — About.</li>
       </ul>
-      <p>Primary actions sit under settings: GENERATE VIDEO, Pause, Resume, Stop. Footer chips repeat output / history / prompt / clean in the same dark chrome. Dialogs share one studio shell. History stays its own table window; Prompt stays its own editor.</p>
+      <p>Generate, Pause, Resume, and Stop sit directly below the settings deck. New Prompt, History, Output, and cleanup actions remain visible in the footer. Status is always written as text as well as color. Keyboard controls are <kbd>Ctrl+Enter</kbd> generate, <kbd>Esc</kbd> stop, <kbd>Ctrl+Shift+P</kbd> pause, <kbd>Ctrl+Shift+R</kbd> resume, <kbd>Ctrl+P</kbd> prompt, <kbd>Ctrl+H</kbd> history, and <kbd>Ctrl+O</kbd> output. The Prompt editor submits with <kbd>Ctrl+Enter</kbd>.</p>
 
       <h2 id="use">Using the app</h2>
       <h3>Requirements</h3>
@@ -317,7 +319,7 @@
       </ul>
       <h3>GUI</h3>
       <pre>python main.py</pre>
-      <p>The window opens maximized. Set duration, resolution (Full HD and 4K, landscape, vertical, square), fps, count, engine, and style. Random is a valid choice for engine and style. Press <strong>GENERATE VIDEO</strong>. Or open <strong>Prompt</strong> (<kbd>Ctrl+P</kbd>), type a brief, and generate from those words. Preview updates during encode. <strong>File → History</strong> lists finished jobs; <strong>Make again from seed</strong> reprints one. <strong>File → Clean temp files</strong> if <code>temp/</code> grows.</p>
+      <p>The window opens maximized. Set duration, resolution (Full HD and 4K, landscape, vertical, square), fps, count, engine, style, edit preset, edit intensity, and caption mode. Master defaults to burned captions plus SRT. Preview updates during encode. The result card reports QC and opens the video, captions, or manifest directly. <strong>File → History</strong> restores the complete stored specification.</p>
       <h3>CLI</h3>
       <pre>python main.py --generate
 python main.py --generate --count 10
@@ -327,15 +329,16 @@ python main.py --generate --engine trend_brief --style pulse
 python main.py --generate --seed 847293847 --resolution 1920x1080 --fps 30
 python main.py --prompt "A bedtime story about a brave orange cat"
 python main.py --prompt "Explain how rain is made" --ai
+python main.py --generate --edit-preset master --captions both --edit-intensity 1.15
 python main.py --generate --youtube --engine how_it_works
 python main.py --test</pre>
       <p><code>--test</code> is a 320×180, 10 fps, 3 second smoke render. <code>--curate</code> expands offline catalogs. <code>--youtube</code> uploads after encode if a channel is already connected. <code>--output</code> can redirect the folder.</p>
       <h3>Config</h3>
-      <p><code>config.yaml</code> holds default resolution, duration options, bitrate (8M Full HD, 35M 4K), engine list, style list, and the AI block. GUI choices override for that run. Logs go to <code>logs/</code>. SQLite history is <code>data/history.db</code>.</p>
+      <p><code>config.yaml</code> holds default resolution, duration options, bitrates, edit presets, loudness target, QC tolerance, engine list, style list, and the AI block. GUI choices override for that run. Logs go to <code>logs/</code>. SQLite history is <code>data/history.db</code>.</p>
 
       <h2 id="seeds">Seeds and history</h2>
       <p>A seed is the identity of a film. The randomizer uses NumPy’s Generator so the same seed expands the same spec. Filename pattern is along the lines of <code>art_&lt;seed&gt;_&lt;date&gt;.mp4</code>. The database stores seed plus parameter JSON for reprint.</p>
-      <p>Changing duration or resolution with the same seed is a different movie: timing and layout scale. To clone a hit, match seed, engine (if forced), resolution, fps, and duration.</p>
+      <p>Changing duration or resolution with the same seed is a different movie: timing and layout scale. History replay avoids that ambiguity by restoring the complete saved <code>ProjectSpec</code>.</p>
 
       <h2 id="arch">Architecture</h2>
       <pre>main.py                 GUI or CLI entry, loads .env

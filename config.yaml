@@ -13,6 +13,34 @@ batch:
 audio:
   enabled: true
   sample_rate: 44100
+  target_lufs: -14.0
+  ceiling_dbfs: -1.0
+
+editing:
+  default_preset: standard
+  presets:
+    draft:
+      motion_scale: 0.65
+      quality: draft
+      caption_mode: sidecar
+    standard:
+      motion_scale: 1.0
+      quality: standard
+      caption_mode: sidecar
+    master:
+      motion_scale: 1.15
+      quality: master
+      caption_mode: both
+
+qc:
+  enabled: true
+  max_av_drift_sec: 0.35
+  min_lufs: -35.0
+  clipping_peak_dbfs: -0.1
+  max_silence_fraction: 0.8
+  max_black_fraction: 0.25
+  max_frozen_fraction: 0.75
+  frame_samples: 12
 
 output:
   directory: "./output"

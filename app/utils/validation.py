@@ -16,7 +16,25 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "fps": 30,
     "duration": {"min": 15, "max": 600, "default": 30, "options": [10, 15, 30, 60, 120, 180, 300, 600]},
     "batch": {"default_count": 10},
-    "audio": {"enabled": True, "sample_rate": 44100},
+    "audio": {"enabled": True, "sample_rate": 44100, "target_lufs": -14.0, "ceiling_dbfs": -1.0},
+    "editing": {
+        "default_preset": "standard",
+        "presets": {
+            "draft": {"motion_scale": 0.65, "quality": "draft", "caption_mode": "sidecar"},
+            "standard": {"motion_scale": 1.0, "quality": "standard", "caption_mode": "sidecar"},
+            "master": {"motion_scale": 1.15, "quality": "master", "caption_mode": "both"},
+        },
+    },
+    "qc": {
+        "enabled": True,
+        "max_av_drift_sec": 0.35,
+        "min_lufs": -35.0,
+        "clipping_peak_dbfs": -0.1,
+        "max_silence_fraction": 0.8,
+        "max_black_fraction": 0.25,
+        "max_frozen_fraction": 0.75,
+        "frame_samples": 12,
+    },
     "output": {
         "directory": "./output",
         "thumbnail": True,
@@ -113,3 +131,12 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ValueError("duration.min must be <= duration.max")
     for res in config.get("resolutions", []):
         parse_resolution(str(res))
+    editing = config.get("editing") or {}
+    presets = editing.get("presets") or {}
+    default_preset = str(editing.get("default_preset") or "standard")
+    if default_preset not in presets:
+        raise ValueError(f"editing.default_preset is not defined: {default_preset}")
+    for name, preset in presets.items():
+        mode = str((preset or {}).get("caption_mode") or "sidecar")
+        if mode not in {"off", "sidecar", "burn", "both"}:
+            raise ValueError(f"editing.presets.{name}.caption_mode is invalid: {mode}")

@@ -82,7 +82,7 @@ def generate_procedural_audio(
     audio_profile (from AI) can pin tempo, scale, energy, and pad brightness.
     """
     rng = np.random.default_rng(seed)
-    n = max(1, int(duration * sample_rate))
+    n = max(1, int(round(duration * sample_rate)))
     audio = np.zeros(n, dtype=np.float32)
     profile = audio_profile if isinstance(audio_profile, dict) else {}
 

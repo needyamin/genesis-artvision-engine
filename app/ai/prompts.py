@@ -12,6 +12,9 @@ SYSTEM_ADVISOR = """You are a creative director for Genesis Artvision Engine, an
 Return ONLY a JSON object (no markdown). Never invent image URLs or external assets.
 Direct the given Engine + Style pair. Never change the engine. Never change the style.
 Engine paints the entire frame. Style only changes look: palette, glow, speed, grade, audio mood.
+For every visual beat, state its narrative shot_purpose, text hierarchy, transition_intent,
+emphasis_weight, and a restrained procedural audio_cue. These are editorial directions,
+not requests for external media.
 Unknown keys will be dropped. Numeric params must stay inside the provided ranges."""
 
 ENGINE_GUIDES: dict[str, str] = {
@@ -62,7 +65,9 @@ Pick exactly one engine:
 - how_it_works: everyday classroom explainer (rain, heart, electricity). Style must be classroom.
 - trend_brief: kinetic brief about a current-web topic. Style must be pulse.
 Follow the user's topic closely. Write 5–6 concrete visual_beats with spoken voice_lines.
-High production: strong titles, readable captions, one picture noun per kids page, no filler."""
+High production: strong titles, readable captions, one picture noun per kids page, no filler.
+Each beat must include shot_purpose, hierarchy, transition_intent, emphasis_weight (0.5–2.0),
+and a restrained audio_cue such as none, chime, whoosh, hit, tick, or rise."""
 
 SYSTEM_CURATE = """You expand offline kids story catalogs for a picture-book video app.
 Return ONLY a JSON object (no markdown). Content must be age 3–7 friendly.
@@ -131,6 +136,11 @@ def _schema_for_engine(engine: str, style: str) -> dict[str, Any]:
                 "word": "CAT",
                 "voice_line": "This is Luna. Luna is a friendly orange cat.",
                 "image_brief": "a friendly orange cat in a picture book",
+                "shot_purpose": "introduce the character",
+                "hierarchy": "word_first",
+                "transition_intent": "gentle_page_turn",
+                "emphasis_weight": "0.5-2.0",
+                "audio_cue": "chime",
             }
         ]
         schema["audio_profile"]["voice_rate"] = "0.78-0.94"
@@ -147,6 +157,11 @@ def _schema_for_engine(engine: str, style: str) -> dict[str, Any]:
                 "caption": "Heat turns ocean water into vapor.",
                 "fact": "Liquid → vapor",
                 "voice_line": "The sun warms lakes and oceans, and water rises as vapor.",
+                "shot_purpose": "explain one causal step",
+                "hierarchy": "headline_then_diagram",
+                "transition_intent": "continuity_push",
+                "emphasis_weight": "0.5-2.0",
+                "audio_cue": "tick",
             }
         ]
         schema["audio_profile"]["voice_rate"] = "0.82-1.0"
@@ -163,6 +178,11 @@ def _schema_for_engine(engine: str, style: str) -> dict[str, Any]:
                 "caption": "One-sentence current context.",
                 "fact": "This week",
                 "voice_line": "Here is the trend people are talking about this week.",
+                "shot_purpose": "hook attention",
+                "hierarchy": "headline_first",
+                "transition_intent": "punch_in",
+                "emphasis_weight": "0.5-2.0",
+                "audio_cue": "hit",
             }
         ]
         schema["audio_profile"]["voice_rate"] = "0.88-1.08"
@@ -256,7 +276,8 @@ def prompt_director_user_prompt(
         f"USER PROMPT:\n{user_prompt.strip()}\n\n"
         f"{locked}"
         "Make the video feel high quality: specific nouns, short spoken lines, clear headlines.\n"
-        "Kids pages need word (uppercase noun) and image_brief. Explainers need phase + voice_line."
+        "Kids pages need word (uppercase noun) and image_brief. Explainers need phase + voice_line.\n"
+        "Use procedural audio cues only; never name copyrighted music or external assets."
     )
 
 

@@ -343,6 +343,9 @@ def maybe_enrich_spec(
     if direction is None:
         return spec
     apply_creative_direction(spec, direction)
+    spec.params["ai_model"] = str(
+        (config.get("ai") or {}).get("model") or "openai/gpt-4o-mini"
+    )
     if spec.params.get("ai_applied") and spec.params.get("ai_summary"):
         _emit(
             on_progress,

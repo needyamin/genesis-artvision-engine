@@ -5,7 +5,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from app.art.edit_brain import director_time, fade_alpha
+from app.art.edit_brain import director_time, ease_in_out_cubic, ease_out_cubic, fade_alpha
 
 _VIGNETTE_CACHE: dict[tuple[int, int, int], np.ndarray] = {}
 
@@ -186,6 +186,99 @@ def apply_master_fade(
     return np.clip(f * a + color * (1.0 - a), 0, 255).astype(np.uint8)
 
 
+def _active_shot(params: dict, second: float) -> tuple[dict | None, float]:
+    plan = params.get("editorial_plan")
+    if not isinstance(plan, dict):
+        return None, 0.0
+    shots = list(plan.get("shots") or [])
+    for shot in shots:
+        start = float(shot.get("start", 0.0))
+        end = max(start + 1e-6, float(shot.get("end", start + 1.0)))
+        if start <= second < end or shot is shots[-1]:
+            return shot, float(np.clip((second - start) / (end - start), 0.0, 1.0))
+    return None, 0.0
+
+
+def composite_shot_layers(
+    outgoing: np.ndarray,
+    current: np.ndarray,
+    *,
+    enter: float,
+    leave: float,
+    kind: str,
+) -> np.ndarray:
+    """Composite two independently rendered shots without frame history."""
+    if outgoing.shape != current.shape:
+        raise ValueError("Transition layers must have matching shapes")
+    p = float(np.clip(enter, 0.0, 1.0))
+    old_weight = float(np.clip(leave, 0.0, 1.0))
+    if p >= 0.999:
+        return current
+    transition = str(kind or "dissolve").lower().replace("-", "_")
+    h, w = current.shape[:2]
+    if transition == "push":
+        out = np.zeros_like(current)
+        shift = int(round(p * w))
+        if shift < w:
+            out[:, : w - shift] = outgoing[:, shift:]
+        if shift > 0:
+            out[:, w - shift :] = current[:, :shift]
+        return out
+    if transition in {"page_turn", "pageturn"}:
+        out = outgoing.copy()
+        edge = int(round((1.0 - p) * w))
+        if edge < w:
+            out[:, edge:] = current[:, edge:]
+        fold = max(2, int(w * 0.035))
+        x0, x1 = max(0, edge - fold), min(w, edge + fold)
+        if x1 > x0:
+            xx = np.linspace(-1.0, 1.0, x1 - x0, dtype=np.float32)
+            shade = (1.0 - np.abs(xx))[:, None] * 0.42
+            region = out[:, x0:x1].astype(np.float32)
+            out[:, x0:x1] = np.clip(region * (1.0 - shade[None, :, :]), 0, 255).astype(np.uint8)
+        return out
+    old = outgoing.astype(np.float32)
+    new = current.astype(np.float32)
+    mixed = old * (1.0 - p) + new * p
+    if transition == "flash":
+        flash = min(0.72, float(np.sin(np.pi * p)) * 0.72)
+        mixed = mixed * (1.0 - flash) + 245.0 * flash
+    elif old_weight < 0.999:
+        mixed = new * (1.0 - old_weight) + mixed * old_weight
+    return np.clip(mixed, 0, 255).astype(np.uint8)
+
+
+def apply_shot_transition(
+    frame: np.ndarray,
+    shot: dict | None,
+    local: float,
+    kids: bool,
+    *,
+    outgoing: np.ndarray | None = None,
+    leave: float | None = None,
+) -> np.ndarray:
+    """Apply a cut only when both complete shot layers are available.
+
+    The renderer supplies a single finished frame, so manufacturing a fade to a
+    solid there would discard the outgoing shot. Engines can pass both layers,
+    or composite them directly while they still own segment rendering.
+    """
+    del kids
+    if not shot or int(shot.get("index", 0)) == 0 or outgoing is None:
+        return frame
+    window = 0.10
+    if local >= window:
+        return frame
+    enter = ease_out_cubic(local / window)
+    return composite_shot_layers(
+        outgoing,
+        frame,
+        enter=enter,
+        leave=(1.0 - enter if leave is None else leave),
+        kind=str(shot.get("transition") or "dissolve"),
+    )
+
+
 def apply_editorial_finish(
     frame: np.ndarray,
     params: dict,
@@ -200,6 +293,8 @@ def apply_editorial_finish(
     del fps
     kids = bool(params.get("_kids_text"))
     t = frame_number / max(1, total_frames)
+    second = t * max(0.0, duration)
+    shot, shot_t = _active_shot(params, second)
     feel = str(params.get("edit_feel") or ("kids_show" if kids else "cinematic"))
     out = frame
 
@@ -207,11 +302,17 @@ def apply_editorial_finish(
     if kids:
         push = 0.0
     if push > 0.004:
-        dt = director_time(t, feel)
+        camera_feel = str(params.get("camera_feel") or feel).lower()
+        easing = str(params.get("easing") or "smooth").lower()
+        dt = shot_t if camera_feel == "static" else director_time(shot_t, feel)
+        if easing == "smooth":
+            dt = ease_in_out_cubic(dt)
         zoom = 1.0 + push * dt
         cx = float(params.get("focus_x", 0.5))
         cy = float(params.get("focus_y", 0.5))
         out = apply_push_in(out, zoom, cx, cy)
+
+    out = apply_shot_transition(out, shot, shot_t, kids)
 
     bloom = float(params.get("bloom") or 0.0)
     if bloom > 0.04:

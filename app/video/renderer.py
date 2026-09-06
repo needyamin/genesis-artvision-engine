@@ -8,7 +8,7 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 import cv2
 import numpy as np
@@ -18,9 +18,27 @@ from app.core.randomizer import ProjectSpec
 from app.utils.logger import get_logger
 from app.utils.performance import hardware_encode_enabled, resolve_workers
 from app.video.effects import apply_editorial_finish, apply_effects
-from app.video.ffmpeg import FFmpegError, build_raw_video_encode_cmd, detect_h264_encoder, find_ffmpeg
+from app.video.captions import caption_cues, overlay_caption_frame
+from app.video.ffmpeg import (
+    FFmpegError,
+    build_raw_video_encode_cmd,
+    detect_h264_encoder,
+    find_ffmpeg,
+    resolve_quality_encode_profile,
+)
 
 logger = get_logger("renderer")
+
+
+def _quality_bitrate(value: str, quality: str) -> str:
+    text = str(value).strip().upper()
+    scale = {"draft": 0.6, "standard": 1.0, "master": 1.5}.get(quality, 1.0)
+    if text.endswith("M"):
+        try:
+            return f"{max(1.0, float(text[:-1]) * scale):g}M"
+        except ValueError:
+            pass
+    return value
 
 
 @dataclass
@@ -74,6 +92,7 @@ class FrameRenderer:
 
     def __init__(self, config: dict) -> None:
         self.config = config
+        self.last_metadata: dict[str, Any] = {}
 
     def render(
         self,
@@ -84,7 +103,7 @@ class FrameRenderer:
         control: RenderControl | None = None,
         on_progress: ProgressCallback | None = None,
         preview_every: int | None = None,
-    ) -> None:
+    ) -> dict[str, Any]:
         control = control or RenderControl()
         engine: ArtEngine = get_engine(spec.engine)
         engine.setup(
@@ -103,23 +122,63 @@ class FrameRenderer:
             bitrate = str(out_cfg.get("bitrate_4k", "35M"))
         else:
             bitrate = str(out_cfg.get("bitrate", "8M"))
+        quality = str(spec.params.get("render_quality") or "standard").strip().lower()
+        if quality not in {"draft", "standard", "master"}:
+            quality = "standard"
+        bitrate = _quality_bitrate(bitrate, quality)
         audio_bitrate = str(out_cfg.get("audio_bitrate", "192k"))
-        codec, codec_args, codec_label = detect_h264_encoder(
+        codec, detected_args, codec_label = detect_h264_encoder(
             ffmpeg,
             hardware=hardware_encode_enabled(self.config),
         )
+        codec_args, profile_metadata = resolve_quality_encode_profile(
+            ffmpeg,
+            codec,
+            quality,
+            spec.fps,
+            tuple(detected_args),
+        )
+
+        total = spec.total_frames
+        exact_duration = total / max(1, spec.fps)
+        gop_frames = int(profile_metadata["gop_frames"])
+        audio_included = bool(audio_path and audio_path.exists())
         cmd = build_raw_video_encode_cmd(
             ffmpeg=ffmpeg,
             width=spec.width,
             height=spec.height,
             fps=spec.fps,
             output=output_path,
-            audio_path=audio_path if (audio_path and audio_path.exists()) else None,
+            audio_path=audio_path if audio_included else None,
             video_bitrate=bitrate,
             audio_bitrate=audio_bitrate,
             video_codec=codec,
             codec_args=codec_args,
+            frame_count=total,
+            duration_seconds=exact_duration,
+            gop_frames=gop_frames,
         )
+        render_metadata: dict[str, Any] = {
+            **profile_metadata,
+            "encoder_label": codec_label,
+            "width": spec.width,
+            "height": spec.height,
+            "fps": spec.fps,
+            "frame_count": total,
+            "duration_sec": exact_duration,
+            "video_bitrate": bitrate,
+            "audio_bitrate": audio_bitrate if audio_included else None,
+            "audio_included": audio_included,
+            "duration_strategy": "video_frames_authoritative_audio_pad_trim",
+        }
+        self.last_metadata = dict(render_metadata)
+        spec.params["render_metadata"] = dict(render_metadata)
+
+        caption_mode = str(spec.params.get("caption_mode") or "sidecar").strip().lower()
+        burn_captions = caption_mode in {"burn", "burned", "burn-in", "burned_in", "both"}
+        plan = spec.params.get("editorial_plan")
+        burn_cues = caption_cues(plan if isinstance(plan, dict) else None) if burn_captions else []
+        render_metadata["captions_burned"] = bool(burn_cues)
         workers = 1
         if getattr(engine, "parallel_frames", True):
             workers = resolve_workers(self.config, width=spec.width, height=spec.height)
@@ -150,7 +209,6 @@ class FrameRenderer:
         drain_thread = threading.Thread(target=_drain_stderr, daemon=True)
         drain_thread.start()
 
-        total = spec.total_frames
         perf = self.config.get("performance") or {}
         max_preview = float(perf.get("max_preview_fps") or 4)
         if preview_every is None:
@@ -164,6 +222,7 @@ class FrameRenderer:
                     control=control,
                     on_progress=on_progress,
                     preview_every=preview_every,
+                    burn_cues=burn_cues,
                 )
             else:
                 self._render_parallel(
@@ -173,6 +232,7 @@ class FrameRenderer:
                     control=control,
                     on_progress=on_progress,
                     preview_every=preview_every,
+                    burn_cues=burn_cues,
                 )
 
             proc.stdin.close()
@@ -188,6 +248,9 @@ class FrameRenderer:
                 raise FFmpegError(f"FFmpeg encode failed ({code}): {err}")
             if on_progress:
                 on_progress(total, total, None)
+            render_metadata["output_size_bytes"] = output_path.stat().st_size
+            self.last_metadata = dict(render_metadata)
+            spec.params["render_metadata"] = dict(render_metadata)
         except Exception:
             try:
                 proc.stdin.close()
@@ -198,6 +261,7 @@ class FrameRenderer:
             raise
         finally:
             engine.cleanup()
+        return render_metadata
 
     def _write_frame(
         self,
@@ -209,8 +273,11 @@ class FrameRenderer:
         *,
         on_progress: ProgressCallback | None,
         preview_every: int,
+        burn_cues: list[dict[str, Any]],
     ) -> None:
         assert proc.stdin is not None
+        if burn_cues:
+            frame = overlay_caption_frame(frame, burn_cues, index / max(1, spec.fps))
         proc.stdin.write(frame.data)
         if on_progress and (index % preview_every == 0 or index == total - 1):
             step = max(4, spec.width // 480)
@@ -226,6 +293,7 @@ class FrameRenderer:
         control: RenderControl,
         on_progress: ProgressCallback | None,
         preview_every: int,
+        burn_cues: list[dict[str, Any]],
     ) -> None:
         total = spec.total_frames
         for i in range(total):
@@ -243,6 +311,7 @@ class FrameRenderer:
                 total,
                 on_progress=on_progress,
                 preview_every=preview_every,
+                burn_cues=burn_cues,
             )
 
     def _render_parallel(
@@ -254,6 +323,7 @@ class FrameRenderer:
         control: RenderControl,
         on_progress: ProgressCallback | None,
         preview_every: int,
+        burn_cues: list[dict[str, Any]],
     ) -> None:
         total = spec.total_frames
         max_inflight = max(workers * 2, workers + 4)
@@ -296,5 +366,6 @@ class FrameRenderer:
                     total,
                     on_progress=on_progress,
                     preview_every=preview_every,
+                    burn_cues=burn_cues,
                 )
                 next_write += 1

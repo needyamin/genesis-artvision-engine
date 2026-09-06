@@ -5,8 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from app.art.storybook_content import build_storybook_lesson
 from app.audio.kids_education import generate_kids_education_audio
+from app.audio.mastering import master_audio
 from app.audio.procedural_music import generate_procedural_audio, write_wav
 from app.core.randomizer import KIDS_ENGINES, TOPIC_BRIEF_ENGINES
 from app.utils.logger import get_logger
@@ -39,7 +42,15 @@ class AudioGenerator:
         """
         try:
             params = params or {}
-            profile = params.get("audio_profile") if isinstance(params.get("audio_profile"), dict) else {}
+            profile = (
+                dict(params.get("audio_profile"))
+                if isinstance(params.get("audio_profile"), dict)
+                else {}
+            )
+            if "tempo_bpm" not in profile:
+                root_tempo = params.get("tempo_bpm", params.get("bpm"))
+                if root_tempo is not None:
+                    profile["tempo_bpm"] = root_tempo
             if engine in KIDS_ENGINES:
                 lesson = params.get("education_lesson")
                 if not isinstance(lesson, dict):
@@ -67,6 +78,11 @@ class AudioGenerator:
                     topic_data,
                     sample_rate=self.sample_rate,
                     audio_profile=profile,
+                    editorial_plan=(
+                        params.get("editorial_plan")
+                        if isinstance(params.get("editorial_plan"), dict)
+                        else None
+                    ),
                 )
             else:
                 samples = generate_procedural_audio(
@@ -80,6 +96,14 @@ class AudioGenerator:
                 if asset is not None:
                     samples = self._mix_asset(samples, asset)
 
+            samples = self._fit_duration(samples, duration)
+            audio_cfg = self.config.get("audio") or {}
+            samples = master_audio(
+                samples,
+                target_lufs=float(audio_cfg.get("target_lufs", -14.0)),
+                ceiling_dbfs=float(audio_cfg.get("ceiling_dbfs", -1.0)),
+            )
+            samples = self._fit_duration(samples, duration)
             write_wav(output_path, samples, self.sample_rate)
             logger.info("Wrote audio: %s", output_path)
             return output_path
@@ -87,11 +111,19 @@ class AudioGenerator:
             logger.exception("Audio generation failed: %s", exc)
             return None
 
+    def _fit_duration(self, samples: Any, duration: float) -> np.ndarray:
+        """Trim or zero-pad mono samples to the exact requested frame count."""
+        target_n = max(1, int(round(float(duration) * self.sample_rate)))
+        audio = np.asarray(samples, dtype=np.float32).reshape(-1)
+        if len(audio) == target_n:
+            return audio
+        if len(audio) > target_n:
+            return audio[:target_n].copy()
+        return np.pad(audio, (0, target_n - len(audio))).astype(np.float32, copy=False)
+
     def _mix_asset(self, samples, asset: Path):
         try:
             import wave
-
-            import numpy as np
 
             with wave.open(str(asset), "rb") as wf:
                 raw = wf.readframes(wf.getnframes())

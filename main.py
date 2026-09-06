@@ -28,6 +28,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=None, help="Deterministic seed")
     parser.add_argument("--engine", type=str, default=None, help="Force art engine name")
     parser.add_argument("--style", type=str, default=None, help="Force style name")
+    parser.add_argument(
+        "--edit-preset",
+        choices=("draft", "standard", "master"),
+        default=None,
+        help="Automatic editing and delivery quality preset",
+    )
+    parser.add_argument(
+        "--captions",
+        choices=("off", "sidecar", "burn", "both"),
+        default=None,
+        help="Caption delivery mode",
+    )
+    parser.add_argument(
+        "--edit-intensity",
+        type=float,
+        default=None,
+        help="Motion intensity from 0.25 to 2.0",
+    )
     parser.add_argument("--no-audio", action="store_true", help="Disable procedural audio")
     parser.add_argument(
         "--test",
@@ -119,6 +137,9 @@ def run_cli(args: argparse.Namespace) -> int:
             "seed": args.seed,
             "engine": args.engine,
             "style": args.style,
+            "edit_preset": args.edit_preset,
+            "caption_mode": args.captions,
+            "edit_intensity": args.edit_intensity,
             "audio_enabled": not args.no_audio,
             "thumbnail": True,
         }
@@ -131,6 +152,9 @@ def run_cli(args: argparse.Namespace) -> int:
             "seed": args.seed,
             "engine": args.engine,
             "style": args.style,
+            "edit_preset": args.edit_preset,
+            "caption_mode": args.captions,
+            "edit_intensity": args.edit_intensity,
             "audio_enabled": not args.no_audio,
         }
         if args.output:

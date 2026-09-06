@@ -40,6 +40,9 @@ class GenerateResult:
     spec: ProjectSpec | None = None
     youtube_url: str | None = None
     youtube_error: str | None = None
+    caption_path: Path | None = None
+    manifest_path: Path | None = None
+    qc: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -75,6 +78,9 @@ class VideoFactory:
         random_resolution: bool = False,
         random_fps: bool = False,
         random_duration: bool = False,
+        edit_preset: str | None = None,
+        caption_mode: str | None = None,
+        edit_intensity: float | None = None,
         control: RenderControl | None = None,
         on_progress: ProgressFn | None = None,
         output_dir: str | Path | None = None,
@@ -113,6 +119,9 @@ class VideoFactory:
             random_resolution=random_resolution,
             random_fps=random_fps,
             random_duration=random_duration,
+            edit_preset=edit_preset,
+            caption_mode=caption_mode,
+            edit_intensity=edit_intensity,
         )
         if prompt:
             spec.params["user_prompt"] = prompt
@@ -187,6 +196,7 @@ class VideoFactory:
         audio_file: Path | None = None
 
         try:
+            spec.params["audio_enabled"] = bool(spec.audio_enabled)
             if on_progress:
                 on_progress(
                     {
@@ -203,7 +213,9 @@ class VideoFactory:
             if control and control.stopped:
                 raise InterruptedError("Render cancelled by user")
 
-            if spec.params.get("user_prompt"):
+            if spec.params.get("_replay_locked"):
+                logger.info("Replaying locked project spec for seed=%s", spec.seed)
+            elif spec.params.get("user_prompt"):
                 from app.ai.prompt_brief import enrich_from_user_prompt
 
                 spec = enrich_from_user_prompt(spec, self.config, on_progress=on_progress)
@@ -240,6 +252,14 @@ class VideoFactory:
                             params=spec.params,
                         )
                     spec.params["topic_data"] = topic_data
+                from app.art.editorial import build_editorial_plan
+
+                plan = build_editorial_plan(
+                    list(topic_data.get("segments") or []),
+                    engine=spec.engine,
+                    duration=spec.duration,
+                    params=spec.params,
+                )
                 if spec.audio_enabled and isinstance(topic_data, dict):
                     if on_progress:
                         on_progress(
@@ -273,6 +293,14 @@ class VideoFactory:
                     params=spec.params,
                 )
                 if lesson:
+                    from app.art.editorial import build_editorial_plan
+
+                    plan = build_editorial_plan(
+                        list(lesson.get("segments") or []),
+                        engine=spec.engine,
+                        duration=spec.duration,
+                        params=spec.params,
+                    )
                     spec.params["_duration"] = spec.duration
                     spec.params["education_lesson"] = lesson
                     spec.params["_kids_text"] = True
@@ -356,10 +384,44 @@ class VideoFactory:
                 spec.params["education_lesson"]["duration"] = spec.duration
             if isinstance(spec.params.get("topic_data"), dict):
                 spec.params["topic_data"]["duration"] = spec.duration
+            content = spec.params.get("education_lesson") or spec.params.get("topic_data")
+            if isinstance(content, dict):
+                from app.art.editorial import finalize_editorial_plan, validate_editorial_plan
+
+                segments = list(content.get("segments") or [])
+                existing_plan = spec.params.get("editorial_plan")
+                if not isinstance(existing_plan, dict):
+                    from app.art.editorial import build_editorial_plan
+
+                    existing_plan = build_editorial_plan(
+                        segments,
+                        engine=spec.engine,
+                        duration=spec.duration,
+                        params=spec.params,
+                    )
+                spec.params["editorial_plan"] = finalize_editorial_plan(existing_plan, segments, spec.duration)
+                plan_errors = validate_editorial_plan(spec.params["editorial_plan"])
+                if plan_errors:
+                    raise RuntimeError("Editorial plan is invalid: " + "; ".join(plan_errors))
 
             from app.ai.realize import realize_visual_assets
 
             spec = realize_visual_assets(spec, on_progress=on_progress)
+            realized_content = spec.params.get("education_lesson") or spec.params.get("topic_data")
+            if isinstance(realized_content, dict) and isinstance(spec.params.get("editorial_plan"), dict):
+                from app.art.editorial import finalize_editorial_plan, validate_editorial_plan
+
+                realized_segments = list(realized_content.get("segments") or [])
+                spec.params["editorial_plan"] = finalize_editorial_plan(
+                    spec.params["editorial_plan"],
+                    realized_segments,
+                    spec.duration,
+                )
+                realized_errors = validate_editorial_plan(spec.params["editorial_plan"])
+                if realized_errors:
+                    raise RuntimeError(
+                        "Realized editorial plan is invalid: " + "; ".join(realized_errors)
+                    )
 
             if control and control.stopped:
                 raise InterruptedError("Render cancelled by user")
@@ -376,7 +438,7 @@ class VideoFactory:
                     params=spec.params,
                 )
                 if audio_file is None:
-                    logger.warning("Continuing without audio for seed=%s", spec.seed)
+                    raise RuntimeError("Soundtrack generation failed; export stopped to avoid a silent video")
 
             def _frame_progress(frame: int, total: int, preview: Any) -> None:
                 if on_progress:
@@ -392,12 +454,72 @@ class VideoFactory:
                         }
                     )
 
-            self.renderer.render(
+            render_metadata = self.renderer.render(
                 spec,
                 video_path,
                 audio_file,
                 control=control,
                 on_progress=_frame_progress,
+            )
+
+            if on_progress:
+                on_progress(
+                    {
+                        "phase": "qc",
+                        "seed": spec.seed,
+                        "engine": spec.engine,
+                        "style": spec.style,
+                        "message": "Checking audio, video, and captions…",
+                    }
+                )
+            from app.video.captions import export_manifest, export_srt
+            from app.video.qc import inspect_render
+
+            plan_data = spec.params.get("editorial_plan")
+            caption_mode = str(spec.params.get("caption_mode") or "sidecar").lower()
+            caption_out = (
+                export_srt(video_path, plan_data)
+                if isinstance(plan_data, dict) and caption_mode in {"sidecar", "both"}
+                else None
+            )
+            spec.params["caption_path"] = str(caption_out) if caption_out else None
+            manifest_out = export_manifest(
+                video_path,
+                spec,
+                caption_path=caption_out,
+                qc={},
+            )
+            spec.params["manifest_path"] = str(manifest_out)
+            qc_config = self.config.get("qc") or {}
+            if bool(qc_config.get("enabled", True)):
+                qc_report = inspect_render(
+                    video_path,
+                    expected_duration=spec.duration,
+                    audio_path=audio_file,
+                    config=qc_config,
+                    expected_metadata={
+                        **render_metadata,
+                        "caption_path": str(caption_out) if caption_out else None,
+                        "manifest_path": str(manifest_out),
+                    },
+                    caption_path=caption_out,
+                    manifest_path=manifest_out,
+                )
+            else:
+                qc_report = {
+                    "passed": True,
+                    "errors": [],
+                    "warnings": ["QC disabled by configuration"],
+                    "metrics": {"skipped": True},
+                }
+            if not qc_report.get("passed", False):
+                raise RuntimeError("Render QC failed: " + "; ".join(qc_report.get("errors") or ["unknown error"]))
+            spec.params["qc"] = qc_report
+            export_manifest(
+                video_path,
+                spec,
+                caption_path=caption_out,
+                qc=qc_report,
             )
 
             thumb_out: Path | None = None
@@ -424,7 +546,11 @@ class VideoFactory:
                     output_path=str(video_path),
                     thumbnail_path=str(thumb_out) if thumb_out else None,
                     render_time=elapsed,
-                    status="ok",
+                    status=(
+                        f"ok: {len(qc_report.get('warnings') or [])} QC warning(s)"
+                        if qc_report.get("warnings")
+                        else "ok"
+                    ),
                 )
             )
             cleanup_work_dir(work, force=True)
@@ -446,6 +572,9 @@ class VideoFactory:
                 project_id=spec.project_id,
                 render_time=elapsed,
                 spec=spec,
+                caption_path=caption_out,
+                manifest_path=manifest_out,
+                qc=qc_report,
             )
         except InterruptedError as exc:
             keep = bool(self.config.get("temp", {}).get("keep_on_failure", True))

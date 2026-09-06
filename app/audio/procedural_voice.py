@@ -310,8 +310,10 @@ def mix_speech_at(
     *,
     bed_gain: float = 0.35,
     speech_gain: float = 0.95,
+    attack_samples: int | None = None,
+    release_samples: int | None = None,
 ) -> None:
-    """Mix speech into bed in-place, ducking background during narration."""
+    """Mix speech into bed with a smooth, click-free ducking envelope."""
     if start_sample >= len(bed) or len(speech) == 0:
         return
     end = min(len(bed), start_sample + len(speech))
@@ -319,4 +321,12 @@ def mix_speech_at(
     if n <= 0:
         return
     seg = speech[:n]
-    bed[start_sample:end] = bed[start_sample:end] * bed_gain + seg * speech_gain
+    attack = min(n, max(1, int(attack_samples if attack_samples is not None else min(2205, n // 5))))
+    release = min(n, max(1, int(release_samples if release_samples is not None else min(4410, n // 4))))
+    duck = np.full(n, float(bed_gain), dtype=np.float32)
+    duck[:attack] = np.linspace(1.0, bed_gain, attack, dtype=np.float32)
+    duck[-release:] = np.maximum(
+        duck[-release:],
+        np.linspace(bed_gain, 1.0, release, dtype=np.float32),
+    )
+    bed[start_sample:end] = bed[start_sample:end] * duck + seg * speech_gain

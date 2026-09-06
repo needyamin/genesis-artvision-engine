@@ -55,6 +55,44 @@ def _add_telemetry_beep(audio: np.ndarray, start_idx: int, sr: int, pitch: float
     audio[start_idx : start_idx + n_b] += beep
 
 
+def _editorial_markers(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(plan, dict):
+        return []
+    raw = plan.get("markers")
+    if not isinstance(raw, list):
+        raw = plan.get("shots")
+    return [dict(item) for item in (raw or []) if isinstance(item, dict)]
+
+
+def _add_editorial_cues(
+    audio: np.ndarray,
+    markers: list[dict[str, Any]],
+    sr: int,
+    rng: np.random.Generator,
+) -> None:
+    """Realize restrained procedural SFX at exact editorial marker times."""
+    for i, marker in enumerate(markers):
+        try:
+            when = float(marker.get("time", marker.get("start", 0.0)))
+        except (TypeError, ValueError):
+            continue
+        start = max(0, min(len(audio) - 1, int(round(when * sr))))
+        cue = str(marker.get("audio_cue") or marker.get("cue") or "").strip().lower()
+        transition = str(marker.get("transition_intent") or marker.get("transition") or "").lower()
+        if cue == "none":
+            continue
+        if cue in {"whoosh", "rise"} or (not cue and i > 0 and transition in {"push", "dissolve", "page_turn"}):
+            _add_whoosh_transition(audio, max(0, start - int(0.20 * sr)), sr, rng)
+        elif cue == "hit":
+            _add_telemetry_beep(audio, start, sr, pitch=220.0)
+            _add_telemetry_beep(audio, start, sr, pitch=880.0)
+        elif cue == "chime":
+            _add_telemetry_beep(audio, start, sr, pitch=660.0)
+            _add_telemetry_beep(audio, start + int(0.10 * sr), sr, pitch=990.0)
+        elif cue in {"tick", "beep"}:
+            _add_telemetry_beep(audio, start, sr, pitch=1200.0 if cue == "tick" else 880.0)
+
+
 def fit_topic_to_narration(
     topic: dict[str, Any],
     *,
@@ -113,6 +151,7 @@ def generate_documentary_audio(
     sample_rate: int = 44100,
     voice_enabled: bool = True,
     audio_profile: dict[str, Any] | None = None,
+    editorial_plan: dict[str, Any] | None = None,
 ) -> np.ndarray:
     """
     Synthesize a cinematic documentary soundtrack synchronized to topic segments:
@@ -128,6 +167,13 @@ def generate_documentary_audio(
 
     profile = audio_profile if isinstance(audio_profile, dict) else {}
     energy = float(max(0.2, min(1.0, profile.get("energy", 0.6))))
+    try:
+        tempo = float(profile.get("tempo_bpm") or 96.0)
+    except (TypeError, ValueError):
+        tempo = 96.0
+    tempo = max(40.0, min(180.0, tempo))
+    beat_interval = 60.0 / tempo
+    markers = _editorial_markers(editorial_plan)
 
     # 1. Cinematic Ambient Pad (D minor / Dorian: D2, A2, D3, F3, A3, C4)
     chord_sets = [
@@ -172,7 +218,6 @@ def generate_documentary_audio(
             audio[s0:s1] += wave * lfo * env * (amp * energy * 1.2)
 
         # Subtle rhythmic clock pulses
-        beat_interval = 0.5  # 120 bpm half-second clicks
         clock_t = t0 + 0.2
         while clock_t < t1 - 0.2:
             cs = int(clock_t * sample_rate)
@@ -180,7 +225,7 @@ def generate_documentary_audio(
             clock_t += beat_interval
 
         # Whoosh at segment start
-        if i > 0:
+        if i > 0 and not markers:
             _add_whoosh_transition(audio, s0 - int(0.2 * sample_rate), sample_rate, rng)
 
         # 2. Synchronized Offline Narration with Music Ducking
@@ -208,6 +253,9 @@ def generate_documentary_audio(
                     bed_gain=0.20,
                     speech_gain=1.05,
                 )
+
+    if markers:
+        _add_editorial_cues(audio, markers, sample_rate, rng)
 
     # Reverb and smooth master fade
     audio = _soft_reverb(audio, sample_rate, 0.38)

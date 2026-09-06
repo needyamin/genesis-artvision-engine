@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from app.core.randomizer import KIDS_ENGINES
+from app.core.randomizer import KIDS_ENGINES, TOPIC_BRIEF_ENGINES
 from app.art.offline_illustrator import ensure_brief_image, parse_image_brief
 from app.utils.logger import get_logger
 
@@ -56,8 +56,54 @@ def _merge_beat_into_segment(seg: dict[str, Any], beat: dict[str, Any]) -> None:
             seg["image_brief"] = brief
         elif word:
             seg["image_brief"] = f"a friendly {word.lower()} kids can recognize"
+    for key in ("shot_purpose", "hierarchy", "audio_cue"):
+        value = str(beat.get(key) or "").strip()
+        if value:
+            seg[key] = value
+    transition = str(beat.get("transition_intent") or "").strip().lower().replace("-", "_")
+    if transition in {"fade", "dissolve", "push", "flash", "page_turn"}:
+        seg["transition_intent"] = transition
+        seg["transition"] = transition
     # Never copy letter, word, voice_line, overlay_text, fact, or motif from AI
     # into an already-built kids segment — those mismatches are what kids see/hear.
+
+
+def _realize_topic_editorial_metadata(spec: Any) -> None:
+    """Attach AI production intent to existing local topic shots without changing renderers."""
+    params = spec.params or {}
+    beats = params.get("ai_visual_beats") or params.get("ai_segment_plan") or []
+    if not isinstance(beats, list) or not beats:
+        return
+    topic = params.get("topic_data")
+    segments = topic.get("segments") if isinstance(topic, dict) else None
+    plan = params.get("editorial_plan")
+    shots = plan.get("shots") if isinstance(plan, dict) else None
+    allowed_cues = {"none", "chime", "whoosh", "hit", "tick", "rise", "beep"}
+    for i, raw in enumerate(beats):
+        if not isinstance(raw, dict):
+            continue
+        metadata: dict[str, Any] = {}
+        for key in ("shot_purpose", "hierarchy", "transition_intent"):
+            value = str(raw.get(key) or "").strip()
+            if value:
+                metadata[key] = value
+        transition = str(metadata.get("transition_intent") or "").lower().replace("-", "_")
+        if transition in {"fade", "dissolve", "push", "flash", "page_turn"}:
+            metadata["transition"] = transition
+        cue = str(raw.get("audio_cue") or "").strip().lower()
+        if cue in allowed_cues:
+            metadata["audio_cue"] = cue
+        try:
+            emphasis = float(raw.get("emphasis_weight", raw.get("emphasis", 1.0)))
+            metadata["emphasis_weight"] = max(0.5, min(2.0, emphasis))
+            metadata["emphasis"] = metadata["emphasis_weight"]
+        except (TypeError, ValueError):
+            pass
+        if isinstance(segments, list) and i < len(segments) and isinstance(segments[i], dict):
+            segments[i].update({k: v for k, v in metadata.items() if k != "emphasis"})
+        if isinstance(shots, list) and i < len(shots) and isinstance(shots[i], dict):
+            shots[i].update(metadata)
+    params["ai_editorial_realized"] = True
 
 
 def realize_visual_assets(
@@ -71,6 +117,9 @@ def realize_visual_assets(
     Runs on the worker thread. Emits per-beat GUI progress; does not block Qt.
     """
     params = spec.params or {}
+    if getattr(spec, "engine", "") in TOPIC_BRIEF_ENGINES:
+        _realize_topic_editorial_metadata(spec)
+        return spec
     if getattr(spec, "engine", "") not in KIDS_ENGINES:
         return spec
     if not (

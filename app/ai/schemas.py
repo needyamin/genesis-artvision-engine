@@ -9,7 +9,7 @@ from typing import Any
 
 from app.core.randomizer import ENGINE_PARAM_SPECS, KIDS_ENGINES, TOPIC_BRIEF_ENGINES
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _JSON_FENCE = re.compile(r"```(?:json)?\s*([\s\S]*?)```", re.IGNORECASE)
 
@@ -239,6 +239,10 @@ _BEAT_STR_KEYS = (
     "shape",
     "motif",
     "image_path",
+    "shot_purpose",
+    "hierarchy",
+    "transition_intent",
+    "audio_cue",
 )
 _BEAT_STR_LIMITS = {
     "image_brief": 120,
@@ -259,6 +263,10 @@ _BEAT_STR_LIMITS = {
     "shape": 24,
     "motif": 24,
     "image_path": 260,
+    "shot_purpose": 48,
+    "hierarchy": 24,
+    "transition_intent": 32,
+    "audio_cue": 32,
 }
 
 
@@ -292,6 +300,12 @@ def clamp_visual_beats(raw: Any) -> list[dict[str, Any]]:
                     beat[num_key] = float(max(0.0, min(1.0, float(item[num_key]))))
                 except (TypeError, ValueError):
                     pass
+        if "emphasis" in item or "emphasis_weight" in item:
+            try:
+                emphasis = item.get("emphasis", item.get("emphasis_weight", 1.0))
+                beat["emphasis_weight"] = float(max(0.5, min(2.0, float(emphasis))))
+            except (TypeError, ValueError):
+                pass
         if beat:
             out.append(beat)
     return out

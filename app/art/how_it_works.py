@@ -8,6 +8,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from app.art.base import ArtEngine, register_engine
+from app.art.brief_layout import brief_layout, composite_segment_layers, paint_text_block
+from app.art.editorial import segment_state
 from app.art.fonts import load_font, paint_text
 from app.art.how_it_works_content import build_how_it_works_topic
 
@@ -36,6 +38,8 @@ class HowItWorksEngine(ArtEngine):
         self.topic = topic
         self.params["topic_data"] = topic
         self.board = str(self.params.get("board", "whiteboard"))
+        caption_band = str(self.params.get("caption_mode") or "").lower() in {"burn", "both"}
+        self.layout = brief_layout(self.width, self.height, caption_band=caption_band)
         self.c_ink = (40, 55, 70)
         self.c_accent = (30, 110, 170)
         self.c_chalk = (245, 248, 252)
@@ -50,22 +54,36 @@ class HowItWorksEngine(ArtEngine):
             if float(s.get("t0", 0)) <= t < float(s.get("t1", 1)):
                 seg = s
                 break
+        state = segment_state(seg, t, easing=str(self.params.get("easing") or "smooth"))
+        speed = max(0.35, min(1.8, float(self.params.get("diagram_speed", 1.0))))
+        motion_t = (float(seg.get("index", 0)) + state["eased"]) / max(1, len(segments))
+        motion_t *= speed
         img = self._board()
         draw = ImageDraw.Draw(img, "RGBA")
         self._header(draw, t, int(seg.get("index") or 0), max(1, len(segments)))
-        box = (
-            int(self.width * 0.06),
-            int(self.height * 0.16),
-            int(self.width * 0.52),
-            int(self.height * 0.88),
+        current = self._segment_layer(
+            seg,
+            state,
+            motion_t,
         )
-        self._diagram(
-            draw,
-            str(self.topic.get("schematic_type") or "cycle"),
-            box,
-            t,
+        outgoing = None
+        idx = int(seg.get("index") or 0)
+        if idx > 0 and state["enter"] < 0.999:
+            previous = segments[idx - 1]
+            previous_t = (idx / max(1, len(segments))) * speed
+            outgoing = self._segment_layer(
+                previous,
+                {"local": 1.0, "eased": 1.0, "enter": 1.0, "leave": 1.0 - state["enter"]},
+                previous_t,
+            )
+        content = composite_segment_layers(
+            outgoing,
+            current,
+            enter=state["enter"],
+            leave=1.0 - state["enter"],
+            kind=str(seg.get("transition") or "dissolve"),
         )
-        self._cards(draw, seg)
+        img.alpha_composite(content)
         return np.array(img.convert("RGB"), dtype=np.uint8)
 
     def _board(self) -> Image.Image:
@@ -77,43 +95,81 @@ class HowItWorksEngine(ArtEngine):
             yy = np.linspace(0, 1, self.height, dtype=np.float32)[:, None, None]
             base = np.clip(top * (1 - yy) + bot * yy, 0, 255).astype(np.uint8)
             base = np.broadcast_to(base, (self.height, self.width, 3)).copy()
-        return Image.fromarray(base)
+        img = Image.fromarray(base).convert("RGBA")
+        draw = ImageDraw.Draw(img, "RGBA")
+        step = max(18, int(min(self.width, self.height) * 0.045))
+        grid_color = (255, 255, 255, 18) if self.board == "chalkboard" else _rgb(self.c_accent, 15)
+        for x in range(0, self.width, step):
+            draw.line((x, 0, x, self.height), fill=grid_color, width=1)
+        for y in range(0, self.height, step):
+            draw.line((0, y, self.width, y), fill=grid_color, width=1)
+        # Offset rails create a physical board edge instead of a flat color field.
+        rail = max(4, int(min(self.width, self.height) * 0.012))
+        draw.rectangle((0, self.height - rail * 2, self.width, self.height), fill=(25, 35, 42, 65))
+        draw.line((0, self.height - rail * 2, self.width, self.height - rail * 2), fill=(255, 255, 255, 45), width=2)
+        return img
 
     def _header(self, draw: ImageDraw.ImageDraw, t: float, idx: int, n: int) -> None:
-        pad = int(self.width * 0.04)
-        hud_h = int(self.height * 0.12)
-        draw.rectangle((0, 0, self.width, hud_h), fill=(255, 255, 255, 230))
-        draw.line((0, hud_h, self.width, hud_h), fill=_rgb(self.c_accent, 160), width=3)
-        f_sm = load_font(max(12, int(self.height * 0.022)))
-        f_lg = load_font(max(16, int(self.height * 0.036)))
-        paint_text(draw, (pad, int(hud_h * 0.32)), str(self.topic.get("domain_label") or "HOW IT WORKS"), f_sm, self.c_accent, anchor="lm")
-        paint_text(draw, (pad, int(hud_h * 0.72)), str(self.topic.get("title") or "How It Works"), f_lg, self.c_ink, anchor="lm", max_width=int(self.width * 0.7))
-        bar_w = int(self.width * 0.22)
-        bx0, by0 = self.width - pad - bar_w, int(hud_h * 0.42)
+        box = self.layout.header
+        pad = self.layout.pad
+        draw.rounded_rectangle(box.xy, radius=14, fill=(255, 255, 255, 230), outline=_rgb(self.c_accent, 90), width=2)
+        f_sm = load_font(self.layout.small_font)
+        f_lg = load_font(self.layout.title_font)
+        paint_text(draw, (box.x0 + pad, box.y0 + int(box.h * 0.28)), str(self.topic.get("domain_label") or "HOW IT WORKS"), f_sm, self.c_accent, anchor="lm")
+        paint_text(draw, (box.x0 + pad, box.y0 + int(box.h * 0.68)), str(self.topic.get("title") or "How It Works"), f_lg, self.c_ink, anchor="lm", max_width=int(box.w * 0.67))
+        bar_w = int(box.w * 0.20)
+        bx0, by0 = box.x1 - pad - bar_w, box.y0 + int(box.h * 0.48)
         draw.rounded_rectangle((bx0, by0, bx0 + bar_w, by0 + 10), radius=4, outline=_rgb(self.c_accent, 180), width=1)
         draw.rounded_rectangle((bx0, by0, bx0 + int(bar_w * t), by0 + 10), radius=4, fill=_rgb(self.c_accent, 200))
         paint_text(draw, (bx0 + bar_w, by0 - 8), f"{idx + 1}/{n}", f_sm, self.c_ink, anchor="rm")
 
-    def _cards(self, draw: ImageDraw.ImageDraw, seg: dict) -> None:
-        x0 = int(self.width * 0.56)
-        y0 = int(self.height * 0.18)
-        x1 = int(self.width * 0.96)
-        y1 = int(self.height * 0.88)
+    def _segment_layer(self, seg: dict, state: dict[str, float], motion_t: float) -> Image.Image:
+        layer = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer, "RGBA")
+        self._diagram(
+            layer,
+            str(self.topic.get("schematic_type") or "cycle"),
+            self.layout.visual.xy,
+            motion_t,
+            state["eased"],
+        )
+        x0, y0, x1, y1 = self.layout.card.xy
         draw.rounded_rectangle((x0, y0, x1, y1), radius=16, fill=(255, 255, 255, 235), outline=_rgb(self.c_accent, 140), width=2)
-        f_phase = load_font(max(11, int(self.height * 0.02)))
-        f_head = load_font(max(16, int(self.height * 0.034)))
-        f_body = load_font(max(13, int(self.height * 0.026)))
-        pad = 16
-        paint_text(draw, (x0 + pad, y0 + 22), str(seg.get("phase") or "STEP"), f_phase, self.c_accent, anchor="lm")
-        paint_text(draw, (x0 + pad, y0 + 58), str(seg.get("headline") or ""), f_head, self.c_ink, anchor="lm", max_width=x1 - x0 - 32)
-        paint_text(draw, (x0 + pad, y0 + 110), str(seg.get("body") or ""), f_body, (70, 80, 90), anchor="lm", max_width=x1 - x0 - 32)
+        f_phase = load_font(self.layout.small_font)
+        f_head = load_font(self.layout.headline_font)
+        f_body = load_font(self.layout.body_font)
+        pad = self.layout.pad
+        paint_text(draw, (x0 + pad, y0 + pad), str(seg.get("phase") or "STEP"), f_phase, self.c_accent, anchor="la")
+        head_y = y0 + pad + int(self.layout.small_font * 1.6)
+        used = paint_text_block(
+            draw,
+            (x0 + pad, head_y),
+            str(seg.get("headline") or ""),
+            f_head,
+            self.c_ink,
+            max_width=x1 - x0 - pad * 2,
+            max_height=max(24, int((y1 - y0) * 0.28)),
+        )
+        body_y = head_y + used + self.layout.gap
+        paint_text_block(
+            draw,
+            (x0 + pad, body_y),
+            str(seg.get("body") or ""),
+            f_body,
+            (70, 80, 90),
+            max_width=x1 - x0 - pad * 2,
+            max_height=max(24, y1 - body_y - pad * 3),
+        )
         point = str(seg.get("data_point") or "")
         if point:
-            by = y1 - 48
-            draw.rounded_rectangle((x0 + pad, by, x1 - pad, by + 32), radius=8, fill=_rgb(self.c_accent, 30))
-            paint_text(draw, (x0 + pad + 8, by + 16), point[:42], f_body, self.c_accent, anchor="lm", max_width=x1 - x0 - 48)
+            by = y1 - pad - max(28, self.layout.body_font * 2)
+            draw.rounded_rectangle((x0 + pad, by, x1 - pad, y1 - pad), radius=8, fill=_rgb(self.c_accent, 30))
+            paint_text(draw, (x0 + pad + 8, (by + y1 - pad) // 2), point, f_body, self.c_accent, anchor="lm", max_width=x1 - x0 - pad * 2 - 16)
+        return layer
 
-    def _diagram(self, draw: ImageDraw.ImageDraw, kind: str, box: tuple[int, int, int, int], t: float) -> None:
+    def _diagram(self, target: Image.Image, kind: str, box: tuple[int, int, int, int], t: float, progress: float) -> None:
+        art = Image.new("RGBA", target.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(art, "RGBA")
         x0, y0, x1, y1 = box
         cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
         r = int(min(x1 - x0, y1 - y0) * 0.32)
@@ -137,6 +193,9 @@ class HowItWorksEngine(ArtEngine):
             self._heat(draw, cx, cy, r, t)
         else:
             self._cycle(draw, cx, cy, r, t)
+        reveal = max(0, min(x1 - x0, int((x1 - x0) * max(0.0, min(1.0, progress)))))
+        if reveal > 0:
+            target.alpha_composite(art.crop((x0, y0, x0 + reveal, y1)), (x0, y0))
 
     def _cycle(self, draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, t: float) -> None:
         draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=_rgb(self.c_accent, 200), width=5)
@@ -155,10 +214,11 @@ class HowItWorksEngine(ArtEngine):
             paint_text(
                 draw,
                 (cx + int(math.cos(a) * (r + 28)), cy + int(math.sin(a) * (r + 28))),
-                lab[:10],
+                lab,
                 load_font(max(11, int(self.height * 0.02))),
                 self.c_ink,
                 anchor="mm",
+                max_width=max(36, r),
             )
 
     def _heart(self, draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, t: float) -> None:
@@ -180,9 +240,17 @@ class HowItWorksEngine(ArtEngine):
 
     def _rainbow(self, draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, t: float) -> None:
         colors = [(220, 60, 60), (240, 140, 40), (240, 210, 50), (70, 180, 80), (50, 120, 220), (90, 70, 200)]
+        step = max(1, r // max(7, len(colors) + 1))
+        stroke = max(1, min(6, r // 8))
         for i, col in enumerate(colors):
-            rr = r - i * 7
-            draw.arc((cx - rr, cy - rr, cx + rr, cy + rr), start=200, end=340, fill=_rgb(col, 220), width=6)
+            rr = max(2, r - i * step)
+            draw.arc(
+                (cx - rr, cy - rr, cx + rr, cy + rr),
+                start=200,
+                end=340,
+                fill=_rgb(col, 220),
+                width=stroke,
+            )
 
     def _plant(self, draw: ImageDraw.ImageDraw, cx: int, yb: int, r: int, t: float) -> None:
         grow = 0.45 + 0.55 * min(1.0, t * 1.4)

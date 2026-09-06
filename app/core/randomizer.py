@@ -64,6 +64,29 @@ class ProjectSpec:
             "thumbnail": self.thumbnail,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ProjectSpec":
+        """Restore the complete stored specification for an exact history replay."""
+        required = {"project_id", "seed", "engine", "style", "width", "height", "fps", "duration"}
+        missing = required.difference(data)
+        if missing:
+            raise ValueError(f"Stored project is missing: {', '.join(sorted(missing))}")
+        return cls(
+            project_id=str(data["project_id"]),
+            seed=int(data["seed"]),
+            engine=str(data["engine"]),
+            style=str(data["style"]),
+            width=int(data["width"]),
+            height=int(data["height"]),
+            fps=int(data["fps"]),
+            duration=float(data["duration"]),
+            params=dict(data.get("params") or {}),
+            palette_name=str(data.get("palette_name") or ""),
+            palette_colors=[list(c) for c in (data.get("palette_colors") or [])],
+            audio_enabled=bool(data.get("audio_enabled", True)),
+            thumbnail=bool(data.get("thumbnail", True)),
+        )
+
 
 # Per-engine parameter ranges (min, max) or discrete choices
 ENGINE_PARAM_SPECS: dict[str, dict[str, Any]] = {
@@ -109,6 +132,9 @@ class Randomizer:
         random_resolution: bool = False,
         random_fps: bool = False,
         random_duration: bool = False,
+        edit_preset: str | None = None,
+        caption_mode: str | None = None,
+        edit_intensity: float | None = None,
     ) -> ProjectSpec:
         seed = int(seed) if seed is not None else self.new_seed()
         rng = np.random.default_rng(seed)
@@ -166,6 +192,24 @@ class Randomizer:
         params["_duration"] = duration_val
         params["style"] = style_name
         params.update(_edit_look(rng, engine_name, style_name, seed))
+        editing = self.config.get("editing") or {}
+        preset_name = str(edit_preset or editing.get("default_preset") or "standard")
+        preset = dict((editing.get("presets") or {}).get(preset_name) or {})
+        chosen_intensity = preset.get("motion_scale", 1.0) if edit_intensity is None else edit_intensity
+        motion_scale = max(0.25, min(2.0, float(chosen_intensity)))
+        params["edit_preset"] = preset_name
+        params["render_quality"] = str(preset.get("quality") or "standard")
+        preset_caption = preset.get("caption_mode")
+        if preset_caption is None:
+            preset_caption = "sidecar" if bool(preset.get("captions", True)) else "off"
+        selected_caption = str(caption_mode or preset_caption).strip().lower()
+        if selected_caption not in {"off", "sidecar", "burn", "both"}:
+            selected_caption = "sidecar"
+        params["caption_mode"] = selected_caption
+        params["motion_scale"] = motion_scale
+        for key in ("camera_push", "animation_speed", "diagram_speed", "ticker_speed"):
+            if key in params:
+                params[key] = float(params[key]) * motion_scale
 
         palette = generate_palette(rng, style_name)
 

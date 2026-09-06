@@ -1,13 +1,14 @@
-"""Settings panel widgets — compact two-column layout."""
+"""Settings panel widgets for the compact studio inspector."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -54,28 +55,30 @@ def style_label(value: str) -> str:
 
 
 class SettingsPanel(QWidget):
-    """Primary generation settings arranged so all sections stay visible."""
+    """Primary generation settings in a compact, no-scroll control deck."""
 
     settings_changed = Signal()
 
     def __init__(self, config: dict[str, Any], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.config = config
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        self.setAccessibleName("Professional Studio settings")
+        self.setAccessibleDescription(
+            "Video generation, creative, editing, batch, delivery, and YouTube settings."
+        )
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._build()
 
     def _build(self) -> None:
         root = QGridLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setHorizontalSpacing(12)
-        root.setVerticalSpacing(10)
+        root.setHorizontalSpacing(8)
+        root.setVerticalSpacing(6)
 
-        # ---- Video (top-left) ----
+        # ---- Video ----
         video_box = QGroupBox("Video")
-        vg = QGridLayout(video_box)
-        vg.setContentsMargins(12, 10, 12, 10)
-        vg.setHorizontalSpacing(10)
-        vg.setVerticalSpacing(8)
+        video_box.setAccessibleName("Video settings")
+        vg = self._section_layout(video_box)
 
         self.resolution = QComboBox()
         res_values = list(
@@ -94,7 +97,11 @@ class SettingsPanel(QWidget):
         if idx >= 0:
             self.resolution.setCurrentIndex(idx)
         self.resolution.setToolTip("Full HD is the default. Choose 4K for higher quality (slower).")
-        self.resolution.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._prepare_combo(
+            self.resolution,
+            "Video resolution",
+            "Select the output dimensions, or Random to choose for each video.",
+        )
 
         self.duration = QComboBox()
         dur_opts = ["Random"] + [
@@ -105,6 +112,11 @@ class SettingsPanel(QWidget):
         if default_dur in dur_opts:
             self.duration.setCurrentText(default_dur)
         self.duration.setToolTip("Length of each generated video in seconds.")
+        self._prepare_combo(
+            self.duration,
+            "Video duration",
+            "Select the video length in seconds, or Random to vary each video.",
+        )
 
         self.fps = QComboBox()
         fps_opts = ["Random"] + [str(x) for x in self.config.get("fps_options", [24, 30, 60])]
@@ -113,22 +125,20 @@ class SettingsPanel(QWidget):
         if cur_fps in fps_opts:
             self.fps.setCurrentText(cur_fps)
         self.fps.setToolTip("Frames per second. 30 is a good balance of smoothness and speed.")
+        self._prepare_combo(
+            self.fps,
+            "Video frame rate",
+            "Select frames per second, or Random to vary each video.",
+        )
 
-        vg.addWidget(QLabel("Resolution"), 0, 0)
-        vg.addWidget(self.resolution, 0, 1, 1, 3)
-        vg.addWidget(QLabel("Duration"), 1, 0)
-        vg.addWidget(self.duration, 1, 1)
-        vg.addWidget(QLabel("FPS"), 1, 2)
-        vg.addWidget(self.fps, 1, 3)
-        vg.setColumnStretch(1, 1)
-        vg.setColumnStretch(3, 1)
+        vg.addLayout(self._field_row("Resolution", self.resolution))
+        vg.addLayout(self._field_row("Duration", self.duration))
+        vg.addLayout(self._field_row("FPS", self.fps))
 
-        # ---- Art (top-right) ----
-        art_box = QGroupBox("Art")
-        ag = QGridLayout(art_box)
-        ag.setContentsMargins(12, 10, 12, 10)
-        ag.setHorizontalSpacing(10)
-        ag.setVerticalSpacing(8)
+        # ---- Creative ----
+        creative_box = QGroupBox("Creative")
+        creative_box.setAccessibleName("Creative settings")
+        cg = self._section_layout(creative_box)
 
         self.art_mode = QComboBox()
         self.art_mode.addItem("Random", userData=None)
@@ -137,82 +147,172 @@ class SettingsPanel(QWidget):
         self.art_mode.setToolTip(
             "What to generate. Random picks among Kids Storybook, How It Works, and Trending Brief."
         )
-        self.art_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._prepare_combo(
+            self.art_mode,
+            "Creative engine",
+            "Select the kind of artwork to generate, or Random to vary each video.",
+        )
 
         self.style = QComboBox()
         self.style.addItem("Random", userData=None)
         for st in self.config.get("styles", []):
             self.style.addItem(style_label(str(st)), userData=str(st))
         self.style.setToolTip("Look and colors. Leave on Random unless you want a specific mood.")
-        self.style.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        ag.addWidget(QLabel("Engine"), 0, 0)
-        ag.addWidget(self.art_mode, 0, 1)
-        ag.addWidget(QLabel("Style"), 1, 0)
-        ag.addWidget(self.style, 1, 1)
-        ag.setColumnStretch(1, 1)
-
-        # ---- Batch (bottom-left) ----
-        batch_box = QGroupBox("Batch")
-        bg = QVBoxLayout(batch_box)
-        bg.setContentsMargins(12, 10, 12, 10)
-        bg.setSpacing(8)
-
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        self.count = QSpinBox()
-        self.count.setRange(1, 100000)
-        self.count.setValue(1)
-        self.count.setSuffix(" video(s)")
-        self.count.setToolTip("How many videos to create in this run.")
-        self.count.setMinimumWidth(120)
-        row.addWidget(QLabel("Count"))
-        row.addWidget(self.count, 1)
-
-        for label, n in (("1", 1), ("5", 5), ("10", 10), ("100", 100)):
-            btn = QPushButton(label)
-            btn.setFixedWidth(44)
-            btn.setToolTip(f"Set count to {n}")
-            btn.clicked.connect(lambda _=False, val=n: self._set_count(val))
-            row.addWidget(btn)
-        bg.addLayout(row)
-
-        self.unlimited = QCheckBox("Keep generating until Stop")
-        self.unlimited.setToolTip("Creates videos continuously until you stop.")
-        self.unlimited.toggled.connect(self._on_unlimited)
-        bg.addWidget(self.unlimited)
-
-        # ---- Output (bottom-right) ----
-        extras = QGroupBox("Output")
-        eg = QVBoxLayout(extras)
-        eg.setContentsMargins(12, 10, 12, 10)
-        eg.setSpacing(8)
-        self.proc_audio = QCheckBox("Soundtrack")
-        self.proc_audio.setChecked(bool(self.config.get("audio", {}).get("enabled", True)))
-        self.proc_audio.setToolTip("Mix audio into the MP4.")
-        self.gen_thumb = QCheckBox("Thumbnail")
-        self.gen_thumb.setChecked(bool(self.config.get("output", {}).get("thumbnail", True)))
-        self.gen_thumb.setToolTip("Save a JPG preview next to each video.")
-        self.random_colors = QCheckBox()
-        self.random_colors.setChecked(True)
-        self.random_colors.hide()
-        self.random_anim = QCheckBox()
-        self.random_anim.setChecked(True)
-        self.random_anim.hide()
+        self._prepare_combo(
+            self.style,
+            "Creative style",
+            "Select the visual style, or Random to vary each video.",
+        )
 
         ai_cfg = self.config.get("ai") or {}
         self.ai_advisor = QCheckBox("AI advisor")
         self.ai_advisor.setChecked(bool(ai_cfg.get("enabled") and ai_cfg.get("per_video")))
         self.ai_advisor.setToolTip("Optional OpenRouter suggestions. Needs OPENROUTER_API_KEY in .env.")
-        self.ai_status = QLabel("")
-        self.ai_status.hide()
+        self._prepare_control(
+            self.ai_advisor,
+            "Use AI advisor",
+            "Request optional OpenRouter creative suggestions for each video.",
+        )
 
+        cg.addLayout(self._field_row("Engine", self.art_mode))
+        cg.addLayout(self._field_row("Style", self.style))
+        cg.addWidget(self.ai_advisor)
+
+        # ---- Editing ----
+        editing_box = QGroupBox("Editing")
+        editing_box.setAccessibleName("Editing settings")
+        eg = self._section_layout(editing_box)
+
+        self.edit_preset = QComboBox()
+        editing = self.config.get("editing") or {}
+        for name in (editing.get("presets") or {"standard": {}}):
+            self.edit_preset.addItem(str(name).replace("_", " ").title(), userData=str(name))
+        preset_idx = self.edit_preset.findData(str(editing.get("default_preset") or "standard"))
+        if preset_idx >= 0:
+            self.edit_preset.setCurrentIndex(preset_idx)
+        self.edit_preset.setToolTip("Draft is fastest; Master uses stronger finishing and higher bitrate.")
+        self._prepare_combo(
+            self.edit_preset,
+            "Editing preset",
+            "Select a finishing preset for motion, captions, and output quality.",
+        )
+        selected_preset = dict(
+            (editing.get("presets") or {}).get(str(self.edit_preset.currentData() or "standard")) or {}
+        )
+        self.edit_intensity = QDoubleSpinBox()
+        self.edit_intensity.setRange(0.25, 2.0)
+        self.edit_intensity.setSingleStep(0.05)
+        self.edit_intensity.setDecimals(2)
+        self.edit_intensity.setValue(float(selected_preset.get("motion_scale", 1.0)))
+        self.edit_intensity.setToolTip("Controls transition, camera, and procedural motion intensity.")
+        self._prepare_control(
+            self.edit_intensity,
+            "Editing intensity",
+            "Adjust transition, camera, and procedural motion intensity.",
+        )
+        self.caption_mode = QComboBox()
+        self.caption_mode.addItem("SRT sidecar", userData="sidecar")
+        self.caption_mode.addItem("Burned + SRT", userData="both")
+        self.caption_mode.addItem("Burned only", userData="burn")
+        self.caption_mode.addItem("Off", userData="off")
+        cap_idx = self.caption_mode.findData(str(selected_preset.get("caption_mode") or "sidecar"))
+        if cap_idx >= 0:
+            self.caption_mode.setCurrentIndex(cap_idx)
+        self.caption_mode.setToolTip("Choose how captions are delivered with the video.")
+        self._prepare_combo(
+            self.caption_mode,
+            "Caption delivery",
+            "Choose a caption sidecar, burned captions, both, or no captions.",
+        )
+        self.edit_preset.currentIndexChanged.connect(self._apply_edit_preset_defaults)
+
+        eg.addLayout(self._field_row("Preset", self.edit_preset))
+        eg.addLayout(self._field_row("Intensity", self.edit_intensity))
+        eg.addLayout(self._field_row("Captions", self.caption_mode))
+
+        # ---- Batch ----
+        batch_box = QGroupBox("Batch")
+        batch_box.setAccessibleName("Batch settings")
+        bg = self._section_layout(batch_box)
+
+        self.count = QSpinBox()
+        self.count.setRange(1, 100000)
+        self.count.setValue(1)
+        self.count.setSuffix(" video(s)")
+        self.count.setToolTip("How many videos to create in this run.")
+        self._prepare_control(
+            self.count,
+            "Batch video count",
+            "Set how many videos to create in this run.",
+        )
+        bg.addLayout(self._field_row("Count", self.count))
+
+        presets = QHBoxLayout()
+        presets.setSpacing(6)
+        preset_label = QLabel("Presets")
+        preset_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        presets.addWidget(preset_label)
+        for label, n in (("1", 1), ("5", 5), ("10", 10), ("100", 100)):
+            btn = QPushButton(label)
+            btn.setObjectName("ChipButton")
+            btn.setToolTip(f"Set count to {n}")
+            btn.setAccessibleName(f"Set batch count to {n}")
+            btn.setAccessibleDescription(f"Sets the number of videos in this run to {n}.")
+            btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            btn.clicked.connect(lambda _=False, val=n: self._set_count(val))
+            presets.addWidget(btn, 1)
+        bg.addLayout(presets)
+
+        self.unlimited = QCheckBox("Generate until stopped")
+        self.unlimited.setToolTip("Creates videos continuously until you stop.")
+        self._prepare_control(
+            self.unlimited,
+            "Unlimited generation",
+            "Continue creating videos until the Stop action is used.",
+        )
+        self.unlimited.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.unlimited.toggled.connect(self._on_unlimited)
+        bg.addWidget(self.unlimited)
+
+        # ---- Delivery ----
+        delivery_box = QGroupBox("Delivery")
+        delivery_box.setAccessibleName("Delivery settings")
+        dg = self._section_layout(delivery_box)
+
+        self.proc_audio = QCheckBox("Soundtrack")
+        self.proc_audio.setChecked(bool(self.config.get("audio", {}).get("enabled", True)))
+        self.proc_audio.setToolTip("Mix audio into the MP4.")
+        self._prepare_control(
+            self.proc_audio,
+            "Include soundtrack",
+            "Mix the generated soundtrack into the MP4 video.",
+        )
+        self.gen_thumb = QCheckBox("Thumbnail")
+        self.gen_thumb.setChecked(bool(self.config.get("output", {}).get("thumbnail", True)))
+        self.gen_thumb.setToolTip("Save a JPG preview next to each video.")
+        self._prepare_control(
+            self.gen_thumb,
+            "Generate thumbnail",
+            "Save a JPG preview beside each generated video.",
+        )
+        dg.addWidget(self.proc_audio)
+        dg.addWidget(self.gen_thumb)
+
+        # ---- YouTube ----
+        youtube_box = QGroupBox("YouTube")
+        youtube_box.setAccessibleName("YouTube delivery settings")
+        yg = self._section_layout(youtube_box)
         yt_cfg = self.config.get("youtube") or {}
         self.youtube_upload = QCheckBox("Upload to YouTube")
         self.youtube_upload.setChecked(bool(yt_cfg.get("enabled")))
         self.youtube_upload.setToolTip(
             "After each video is saved, upload it with an SEO title, hashtags, and thumbnail. "
             "Connect your channel first (YouTube menu). Default privacy is Unlisted."
+        )
+        self._prepare_control(
+            self.youtube_upload,
+            "Upload videos to YouTube",
+            "Upload each completed video to the connected YouTube channel.",
         )
         self.youtube_privacy = QComboBox()
         self.youtube_privacy.addItem("Unlisted", userData="unlisted")
@@ -223,37 +323,117 @@ class SettingsPanel(QWidget):
         if idx >= 0:
             self.youtube_privacy.setCurrentIndex(idx)
         self.youtube_privacy.setToolTip("Unlisted is safest while you review. Public goes live on the channel.")
+        self._prepare_combo(
+            self.youtube_privacy,
+            "YouTube privacy",
+            "Choose whether uploaded videos are unlisted, public, or private.",
+        )
         self.youtube_channel = QLabel("Channel: not connected")
         self.youtube_channel.setObjectName("ChannelPill")
         self.youtube_channel.setWordWrap(True)
+        self.youtube_channel.setAccessibleName("Connected YouTube channel")
+        self.youtube_channel.setAccessibleDescription(
+            "Shows which YouTube channel will receive uploaded videos."
+        )
+        self.youtube_channel.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+        )
+        yg.addWidget(self.youtube_upload)
+        yg.addLayout(self._field_row("Privacy", self.youtube_privacy))
+        yg.addWidget(self.youtube_channel)
 
-        eg.addWidget(self.proc_audio)
-        eg.addWidget(self.gen_thumb)
-        eg.addWidget(self.ai_advisor)
-        eg.addWidget(self.youtube_upload)
-        priv_row = QHBoxLayout()
-        priv_row.addWidget(QLabel("YouTube"))
-        priv_row.addWidget(self.youtube_privacy, 1)
-        eg.addLayout(priv_row)
-        eg.addWidget(self.youtube_channel)
-        eg.addStretch(1)
-
-        root.addWidget(video_box, 0, 0)
-        root.addWidget(art_box, 0, 1)
-        root.addWidget(batch_box, 1, 0)
-        root.addWidget(extras, 1, 1)
+        sections = (
+            (video_box, 0, 0),
+            (creative_box, 0, 1),
+            (editing_box, 0, 2),
+            (batch_box, 1, 0),
+            (delivery_box, 1, 1),
+            (youtube_box, 1, 2),
+        )
+        for section, row, column in sections:
+            section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+            root.addWidget(section, row, column)
         root.setColumnStretch(0, 1)
         root.setColumnStretch(1, 1)
-        root.setRowStretch(0, 0)
-        root.setRowStretch(1, 0)
+        root.setColumnStretch(2, 1)
+        root.setRowStretch(2, 1)
+
+        self._connect_change_signals()
+
+    @staticmethod
+    def _section_layout(section: QGroupBox) -> QVBoxLayout:
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(6)
+        return layout
+
+    @staticmethod
+    def _field_row(label_text: str, control: QWidget) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        label = QLabel(label_text)
+        label.setMinimumWidth(68)
+        label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        label.setBuddy(control)
+        row.addWidget(label)
+        row.addWidget(control, 1)
+        return row
+
+    @staticmethod
+    def _prepare_control(control: QWidget, name: str, description: str) -> None:
+        control.setAccessibleName(name)
+        control.setAccessibleDescription(description)
+        control.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def _prepare_combo(self, combo: QComboBox, name: str, description: str) -> None:
+        combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        combo.setMinimumContentsLength(8)
+        self._prepare_control(combo, name, description)
+
+    def _connect_change_signals(self) -> None:
+        for combo in (
+            self.resolution,
+            self.duration,
+            self.fps,
+            self.art_mode,
+            self.style,
+            self.edit_preset,
+            self.caption_mode,
+            self.youtube_privacy,
+        ):
+            combo.currentIndexChanged.connect(lambda _index: self.settings_changed.emit())
+        for spin in (self.count, self.edit_intensity):
+            spin.valueChanged.connect(lambda _value: self.settings_changed.emit())
+        for checkbox in (
+            self.unlimited,
+            self.proc_audio,
+            self.gen_thumb,
+            self.ai_advisor,
+            self.youtube_upload,
+        ):
+            checkbox.toggled.connect(lambda _checked: self.settings_changed.emit())
 
     def _set_count(self, n: int) -> None:
-        self.unlimited.setChecked(False)
-        self.count.setEnabled(True)
-        self.count.setValue(n)
+        changed = self.unlimited.isChecked() or self.count.value() != n
+        with QSignalBlocker(self.unlimited), QSignalBlocker(self.count):
+            self.unlimited.setChecked(False)
+            self.count.setEnabled(True)
+            self.count.setValue(n)
+        if changed:
+            self.settings_changed.emit()
 
     def _on_unlimited(self, on: bool) -> None:
         self.count.setEnabled(not on)
+
+    def _apply_edit_preset_defaults(self, _index: int = -1) -> None:
+        editing = self.config.get("editing") or {}
+        name = str(self.edit_preset.currentData() or "standard")
+        preset = dict((editing.get("presets") or {}).get(name) or {})
+        with QSignalBlocker(self.edit_intensity), QSignalBlocker(self.caption_mode):
+            self.edit_intensity.setValue(float(preset.get("motion_scale", 1.0)))
+            idx = self.caption_mode.findData(str(preset.get("caption_mode") or "sidecar"))
+            if idx >= 0:
+                self.caption_mode.setCurrentIndex(idx)
 
     def values(self) -> dict[str, Any]:
         eng_val = self.art_mode.currentData()
@@ -275,6 +455,9 @@ class SettingsPanel(QWidget):
             "count": int(self.count.value()),
             "unlimited": self.unlimited.isChecked(),
             "audio_enabled": self.proc_audio.isChecked(),
+            "edit_preset": str(self.edit_preset.currentData() or "standard"),
+            "edit_intensity": float(self.edit_intensity.value()),
+            "caption_mode": str(self.caption_mode.currentData() or "sidecar"),
             "thumbnail": self.gen_thumb.isChecked(),
             "ai_enabled": self.ai_advisor.isChecked(),
             "ai_per_video": self.ai_advisor.isChecked(),

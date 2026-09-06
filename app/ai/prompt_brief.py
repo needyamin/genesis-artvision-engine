@@ -5,14 +5,16 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from pathlib import Path
 from typing import Any, Callable
 
 from app.ai.advisor import apply_creative_direction, format_direction_summary
 from app.ai.client import AIClientError, chat_completion, has_api_key
 from app.ai.prompts import SYSTEM_PROMPT_DIRECTOR, prompt_director_user_prompt
-from app.ai.schemas import CreativeDirection, extract_json_object, parse_creative_direction
+from app.ai.schemas import SCHEMA_VERSION, CreativeDirection, extract_json_object, parse_creative_direction
 from app.core.randomizer import ENGINE_DEFAULT_STYLE
 from app.utils.logger import get_logger
+from app.utils.paths import resolve_path
 
 logger = get_logger("ai.prompt_brief")
 
@@ -58,6 +60,72 @@ def prompt_seed(text: str) -> int:
     blob = " ".join(str(text or "").strip().lower().split())
     digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()
     return int(digest[:8], 16) % (2**31 - 1) or 1
+
+
+def _prompt_hash(prompt: str, engine: str | None, style: str | None) -> str:
+    normalized = " ".join(str(prompt or "").strip().lower().split())
+    raw = f"{normalized}|engine={engine or 'auto'}|style={style or 'auto'}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _prompt_cache_path(
+    config: dict[str, Any],
+    prompt: str,
+    model: str,
+    engine: str | None,
+    style: str | None,
+) -> Path:
+    cache_dir = resolve_path((config.get("ai") or {}).get("cache_dir") or "./data/ai_cache")
+    key = hashlib.sha256(
+        f"prompt-plan|{SCHEMA_VERSION}|{_prompt_hash(prompt, engine, style)}|{model}".encode("utf-8")
+    ).hexdigest()[:32]
+    return cache_dir / f"prompt_{key}.json"
+
+
+def _load_prompt_plan(
+    path: Path,
+    *,
+    requested_engine: str | None,
+    requested_style: str | None,
+) -> tuple[str, str, CreativeDirection] | None:
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        picked = str(data.get("engine") or requested_engine or "").strip()
+        if picked not in ENGINES or (requested_engine and picked != requested_engine):
+            return None
+        style = str(requested_style or data.get("style") or ENGINE_DEFAULT_STYLE[picked])
+        direction = parse_creative_direction(
+            data.get("direction") or {}, engine=picked, style=style
+        )
+        return picked, style, direction
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        logger.warning("Ignoring corrupt prompt-plan cache %s: %s", path, exc)
+        return None
+
+
+def _save_prompt_plan(
+    path: Path,
+    *,
+    prompt: str,
+    model: str,
+    engine: str,
+    style: str,
+    direction: CreativeDirection,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "prompt_sha256": _prompt_hash(prompt, engine, style),
+        "model": model,
+        "engine": engine,
+        "style": style,
+        "direction": direction.to_dict(),
+    }
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    temp.replace(path)
 
 
 def _norm(text: str) -> str:
@@ -231,6 +299,35 @@ def _merge_look(data: dict[str, Any], engine: str) -> dict[str, Any]:
     return merged
 
 
+def _production_fields(engine: str, index: int, total: int) -> dict[str, Any]:
+    """Deterministic editorial intent for plans built without a network model."""
+    first = index == 0
+    last = index == total - 1
+    if engine == "kids_storybook":
+        return {
+            "shot_purpose": "introduce" if first else ("resolve" if last else "advance story"),
+            "hierarchy": "word_first",
+            "transition_intent": "fade_in" if first else "gentle_page_turn",
+            "emphasis_weight": 1.2 if first or last else 1.0,
+            "audio_cue": "chime",
+        }
+    if engine == "how_it_works":
+        return {
+            "shot_purpose": "hook" if first else ("summarize" if last else "explain cause"),
+            "hierarchy": "headline_then_diagram",
+            "transition_intent": "fade_in" if first else "continuity_push",
+            "emphasis_weight": 1.35 if first else (1.2 if last else 1.0),
+            "audio_cue": "hit" if first else ("rise" if last else "tick"),
+        }
+    return {
+        "shot_purpose": "hook" if first else ("outlook" if last else "build evidence"),
+        "hierarchy": "headline_first",
+        "transition_intent": "fade_in" if first else "punch_in",
+        "emphasis_weight": 1.5 if first else (1.25 if last else 1.0),
+        "audio_cue": "hit" if first else ("rise" if last else "whoosh"),
+    }
+
+
 def offline_direction_from_prompt(prompt: str, engine: str, style: str) -> CreativeDirection:
     """Build a full creative plan locally from the user's words."""
     lines = split_sentences(prompt)
@@ -252,6 +349,7 @@ def offline_direction_from_prompt(prompt: str, engine: str, style: str) -> Creat
                     "word": word,
                     "voice_line": voice[:160],
                     "image_brief": f"a friendly {word.lower()} in a warm picture book",
+                    **_production_fields(engine, i, len(lines)),
                 }
             )
             voices.append(voice[:160])
@@ -275,6 +373,7 @@ def offline_direction_from_prompt(prompt: str, engine: str, style: str) -> Creat
                     "caption": line[:72],
                     "fact": nouns[i % len(nouns)].title() if nouns else f"Step {i + 1}",
                     "voice_line": voice[:160],
+                    **_production_fields(engine, i, len(lines)),
                 }
             )
             voices.append(voice[:160])
@@ -299,6 +398,7 @@ def offline_direction_from_prompt(prompt: str, engine: str, style: str) -> Creat
                     "caption": line[:72],
                     "fact": "This week" if i == 0 else nouns[i % len(nouns)].title(),
                     "voice_line": voice[:160],
+                    **_production_fields(engine, i, len(lines)),
                 }
             )
             voices.append(voice[:160])
@@ -330,13 +430,29 @@ def ai_direction_from_prompt(
     on_progress: ProgressFn | None = None,
 ) -> tuple[str, str, CreativeDirection] | None:
     """Ask OpenRouter to plan the video. Returns None on any failure."""
-    if not has_api_key(config):
-        return None
     ai_cfg = dict(config.get("ai") or {})
     ai_cfg["timeout_sec"] = max(float(ai_cfg.get("timeout_sec") or 20), 45.0)
     call_config = dict(config)
     call_config["ai"] = ai_cfg
     model = str(ai_cfg.get("model") or "openai/gpt-4o-mini")
+    cache_path = _prompt_cache_path(config, prompt, model, engine, style)
+    cached = _load_prompt_plan(
+        cache_path, requested_engine=engine, requested_style=style
+    )
+    if cached is not None:
+        _emit(
+            on_progress,
+            {
+                "phase": "ai",
+                "ai_status": "cache",
+                "engine": cached[0],
+                "style": cached[1],
+                "message": f"Using cached prompt plan ({model}).",
+            },
+        )
+        return cached
+    if not has_api_key(config):
+        return None
     _emit(
         on_progress,
         {
@@ -377,6 +493,17 @@ def ai_direction_from_prompt(
             direction.easing = look.get("easing")
         if direction.camera_feel is None:
             direction.camera_feel = look.get("camera_feel")
+        try:
+            _save_prompt_plan(
+                cache_path,
+                prompt=prompt,
+                model=model,
+                engine=picked,
+                style=sty,
+                direction=direction,
+            )
+        except OSError as exc:
+            logger.warning("Could not save prompt-plan cache %s: %s", cache_path, exc)
         logger.info("Prompt AI plan engine=%s title=%s", picked, direction.title)
         return picked, sty, direction
     except (AIClientError, ValueError, json.JSONDecodeError, TypeError) as exc:
@@ -431,6 +558,11 @@ def enrich_from_user_prompt(
     spec.params["user_prompt"] = prompt
     spec.params["prompt_mode"] = mode
     spec.params["prompt_source"] = source
+    spec.params["ai_model"] = (
+        str((config.get("ai") or {}).get("model") or "openai/gpt-4o-mini")
+        if source == "ai"
+        else "offline-procedural-v1"
+    )
     spec.params["ai_applied"] = True
     spec.params["ai_summary"] = (
         f"Prompt ({source}): {prompt[:180]}\n" + format_direction_summary(direction)

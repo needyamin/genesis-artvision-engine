@@ -6,6 +6,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from app.art.base import ArtEngine, register_engine
+from app.art.brief_layout import composite_segment_layers, paint_text_block
+from app.art.editorial import segment_state
 from app.art.education_ui import draw_title_banner, load_font, paint_text, paste_picture, segment_at
 from app.art.kids_layout import kids_layout
 from app.art.storybook_content import build_storybook_lesson
@@ -40,11 +42,38 @@ class KidsStorybookEngine(ArtEngine):
     def render_frame(self, frame_number: int, total_frames: int) -> np.ndarray:
         t = frame_number / max(1, total_frames)
         seg = segment_at(self.segments, t)
+        state = segment_state(seg, t, easing=str(self.params.get("easing") or "smooth"))
+        page = int(seg.get("index") or 0) + 1
+        total = max(1, len(self.segments))
+        current = self._render_page(seg, page, total, state)
+        outgoing = None
+        if page > 1 and state["enter"] < 0.999:
+            previous = self.segments[page - 2]
+            outgoing = self._render_page(
+                previous,
+                page - 1,
+                total,
+                {"local": 1.0, "eased": 1.0, "enter": 1.0, "leave": 1.0 - state["enter"]},
+            )
+        img = composite_segment_layers(
+            outgoing,
+            current,
+            enter=state["enter"],
+            leave=1.0 - state["enter"],
+            kind=str(seg.get("transition") or "page_turn"),
+        )
+        return np.array(img.convert("RGB"), dtype=np.uint8)
+
+    def _render_page(
+        self,
+        seg: dict,
+        page: int,
+        total: int,
+        state: dict[str, float],
+    ) -> Image.Image:
         img = self._paper_page()
         draw = ImageDraw.Draw(img)
         title = str(self.lesson.get("title") or "Storybook")
-        page = int(seg.get("index") or 0) + 1
-        total = max(1, len(self.segments))
         draw_title_banner(
             draw,
             self.width,
@@ -60,27 +89,29 @@ class KidsStorybookEngine(ArtEngine):
         paint_text(
             draw,
             (ly.stage.cx, ly.stage.y0 + int(ly.stage.h * 0.18)),
-            headline[:42],
+            headline,
             self.font_lg,
             (70, 45, 30),
             anchor="mm",
             max_width=ly.stage.w - 24,
         )
         if str(seg.get("word") or ""):
-            paste_picture(img, seg, ly)
+            bounce = int((1.0 - state["enter"]) * self.height * 0.025)
+            paste_picture(img, seg, ly, bounce=bounce)
         if body:
             cap = ly.caption
             draw.rounded_rectangle(cap.xy, radius=14, fill=(255, 248, 236), outline=(180, 140, 100), width=2)
-            paint_text(
+            paint_text_block(
                 draw,
-                (cap.cx, cap.cy),
-                body[:72],
+                (cap.x0 + max(10, ly.gap * 2), cap.y0 + max(8, ly.gap)),
+                body,
                 self.font_md,
                 (60, 50, 40),
-                anchor="mm",
-                max_width=cap.w - 20,
+                max_width=cap.w - max(20, ly.gap * 4),
+                max_height=cap.h - max(16, ly.gap * 2),
+                spacing=max(3, ly.gap // 2),
             )
-        return np.array(img.convert("RGB"), dtype=np.uint8)
+        return img
 
     def _paper_page(self) -> Image.Image:
         w, h = self.width, self.height
@@ -95,11 +126,25 @@ class KidsStorybookEngine(ArtEngine):
         rng = np.random.default_rng(self.seed + 3)
         grain = rng.random((h, w, 1)).astype(np.float32) * 8.0 - 4.0
         page = np.clip(page + grain, 0, 255)
-        img = Image.fromarray(page.astype(np.uint8))
-        draw = ImageDraw.Draw(img)
+        paper = Image.fromarray(page.astype(np.uint8)).convert("RGBA")
+        # A desk, ambient occlusion, and offset sheets make the page read as layered.
+        desk = Image.new("RGBA", (w, h), (116, 82, 58, 255))
+        draw = ImageDraw.Draw(desk, "RGBA")
         margin = int(min(w, h) * 0.04)
-        draw.rectangle((margin, margin, w - margin, h - margin), outline=(180, 140, 100), width=3)
+        for spread in range(4, 0, -1):
+            offset = spread * max(1, margin // 10)
+            alpha = 16 + spread * 9
+            draw.rounded_rectangle(
+                (margin + offset, margin + offset, w - margin + offset, h - margin + offset),
+                radius=max(6, margin // 3),
+                fill=(35, 22, 15, alpha),
+            )
+        sheet = paper.crop((margin, margin, w - margin, h - margin))
+        desk.alpha_composite(sheet, (margin, margin))
+        draw = ImageDraw.Draw(desk, "RGBA")
+        draw.rounded_rectangle((margin, margin, w - margin, h - margin), radius=max(6, margin // 3), outline=(180, 140, 100, 230), width=3)
         for i in range(8):
             x = margin + 6 + i
-            draw.line((x, margin + 4, x, h - margin - 4), fill=(160, 120, 90))
-        return img
+            draw.line((x, margin + 4, x, h - margin - 4), fill=(160, 120, 90, 150))
+        draw.line((w - margin - 2, margin + 8, w - margin - 2, h - margin - 8), fill=(255, 255, 255, 90), width=2)
+        return desk

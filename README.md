@@ -21,7 +21,7 @@ Three engines, each with a matching look. Engine owns the **concept** (text, pic
 |--------|-------|----------------|
 | `kids_storybook` — Kids Storybook | `storybook` | Picture-book pages: story title, page text, a drawn noun, slow kids voice |
 | `how_it_works` — How It Works | `classroom` | Everyday classroom diagrams (water cycle, heartbeat, electricity…) plus a calm narrator |
-| `trend_brief` — Trending Brief | `pulse` | Kinetic type about a current-web topic, documentary voice over a pulse bed |
+| `trend_brief` — Trending Brief | `pulse` | Kinetic type about an evergreen or AI-suggested topic, documentary voice over a pulse bed |
 
 If you leave Engine or Style on Random, they pair together. If you pick both by hand, the engine still decides the content.
 
@@ -56,9 +56,13 @@ python main.py --test
 python main.py
 ```
 
-The home screen is a dark studio: logo + **GENESIS ARTVISION** in the top bar, then **File**, **Prompt**, **YouTube**, and **Help**. Click **GENERATE VIDEO**. Leave Engine/Style on Random, or pick a storybook / classroom / pulse pair on purpose.
+The home screen uses a balanced two-pane production layout. A compact full-width control deck keeps every project setting visible without scrolling; Activity and QC sit beside an aspect-correct preview below it. The preview no longer dominates the window, and pane sizes are restored at startup. Click **GENERATE VIDEO**; leave Engine/Style on Random, or choose a storybook / classroom / pulse pair.
 
-Or open **Prompt** (menu, footer chip, or `Ctrl+P`). Type what you want, choose **Offline** or **AI suggestion**, and submit. The app picks an engine, times the voice, and encodes Full HD (or 4K). Same prompt words make the same seed.
+Choose an **Edit preset**: Draft for quick previews, Standard for normal publishing, or Master for stronger finishing, slower encoding, and burned plus sidecar captions. You can separately choose caption mode and edit intensity. The automatic director measures narration, validates reading speed, weights important beats, drives true scene-to-scene transitions and responsive motion, mixes to a consistent loudness target, and checks the completed package before reporting success.
+
+Open **New prompt** from the right rail or `Ctrl+P`. Type what you want, choose **Offline** or **AI suggestion**, and submit with the button or `Ctrl+Enter`. The app picks an engine, times the voice, and encodes Full HD (or 4K). Same prompt words make the same seed.
+
+Studio shortcuts: `Ctrl+Enter` generate, `Esc` stop, `Ctrl+Shift+P` pause, `Ctrl+Shift+R` resume, `Ctrl+P` prompt, `Ctrl+H` history, and `Ctrl+O` output.
 
 When a render finishes, a **result card** shows the thumbnail, seed, local path, and either a `youtu.be` link or a short YouTube error — not a raw 403 dump.
 
@@ -91,6 +95,9 @@ python main.py --prompt "A bedtime story about a brave orange cat who finds the 
 # Prompt + OpenRouter plan
 python main.py --prompt "Explain how rain is made" --ai
 
+# Broadcast master with burned captions plus SRT
+python main.py --generate --edit-preset master --captions both --edit-intensity 1.15
+
 # Generate then upload to your YouTube channel (connect in the GUI first)
 python main.py --generate --youtube --engine how_it_works
 
@@ -108,7 +115,27 @@ Example:
 python main.py --generate --seed 12345 --resolution 1280x720 --fps 30 --duration 15
 ```
 
-History stores seed + parameter JSON so you can recreate a video from the GUI (**File → History**, or the History chip → **Make again from seed**).
+History stores the complete project specification. **Make again from seed** replays those stored parameters instead of using the current GUI controls.
+
+## Professional delivery files
+
+Each successful render can produce a matched set in `output/`:
+
+- `.mp4` — final H.264/AAC video
+- `.srt` — narration-synchronized captions
+- `.json` — reproducibility manifest containing the full spec, editorial shot plan, AI prompt hash, future source-provenance fields, and QC report
+- `.jpg` — thumbnail when enabled
+
+The QC pass verifies muxed stream presence, exact resolution/FPS/frame count, A/V drift, SRT timing and overlap, integrated loudness, silence/clipping risk, sampled black/frozen frames, and manifest completeness. A broken soundtrack or structurally invalid package stops the export instead of silently creating an unfinished video.
+
+## Broadcast procedural editing
+
+- Headlines and body copy use fitted multiline typography rather than fixed character cuts.
+- Brief layouts adapt independently to 16:9, 9:16, and square safe zones.
+- Dissolve, push, flash, and page-turn transitions composite outgoing and incoming scenes.
+- Trend Brief uses deterministic multi-depth motion; How It Works draws diagrams progressively; Storybook uses layered paper and page depth.
+- OpenRouter may suggest shot purpose, hierarchy, emphasis, transitions, and sound cues. Those suggestions are validated, cached by prompt/model, and realized entirely with local procedural rendering.
+- Audio cues share the same shot markers and BPM as the visual edit; final audio is padded or trimmed to the exact frame-authoritative duration.
 
 ## How to add a new art engine
 
@@ -165,7 +192,7 @@ random_art_video_factory/
 | `FFmpeg was not found` | Install FFmpeg and restart the terminal/app |
 | GUI won't start | `pip install PySide6` |
 | Slow renders | Use `--test`, lower resolution, or shorter duration |
-| No audio in MP4 | Check logs; video still encodes if audio fails |
+| Soundtrack generation failed | Check the log and TTS/FFmpeg setup; the export stops so a silent file is not mistaken for a finished video |
 | Story voice or picture feels wrong | Generate a **new** file; old MP4s are not rewritten |
 | Disk filling up | Use **File → Clean temp files** or delete `temp/` |
 | Reproduce a video | Use the seed from History / filename metadata in the DB |
@@ -247,7 +274,7 @@ Get a key: [openrouter.ai/keys](https://openrouter.ai/keys).
 python main.py --curate
 ```
 
-Writes `data/ai_catalogs/education.json`. Later generates use cached direction with **no API calls** when per-video AI is off.
+Writes `data/ai_catalogs/education.json` for catalog curation. The current render engines still use their embedded catalogs; runtime catalog ingestion and verified public web sources are planned for the next content-source milestone.
 
 2. **Per-video advisor** (optional, costs per call; results cached under `data/ai_cache/`):
 
@@ -277,6 +304,8 @@ Defaults keep `enabled: false` so the app remains fully offline. If Gemini model
 7. For cheap batches: curate often; use per-video AI only when you want a fresh creative-director pass.
 
 The advisor cannot paint photoreal frames or replace the soundtrack with studio vocals. It suggests **image briefs and on-screen text** for the engine you chose. Each engine paints its own frames: story pages, classroom diagrams, or kinetic type.
+
+The application does **not** currently scrape or verify live internet sources. OpenRouter is used only for optional creative direction. A future source layer will use public feeds/pages with citations and provenance while keeping rendering local.
 
 ---
 

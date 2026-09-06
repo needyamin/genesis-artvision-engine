@@ -8,7 +8,71 @@ QWidget {
 }
 
 QMainWindow, QDialog {
-    background: #0f1c24;
+    background: #09131b;
+}
+
+QWidget#StudioRoot {
+    background: #09131b;
+}
+
+QFrame#SettingsRail, QFrame#InspectorRail, QFrame#SettingsDeck, QFrame#ActivityPane {
+    background: #101d26;
+    border: 1px solid #223945;
+    border-radius: 12px;
+}
+
+QFrame#PreviewRail, QFrame#PreviewPane {
+    background: #0b161e;
+    border: 1px solid #223945;
+    border-radius: 12px;
+}
+
+QFrame#QuickActions {
+    background: #13232d;
+    border: 1px solid #263f4b;
+    border-radius: 10px;
+}
+
+QLabel#PanelEyebrow {
+    color: #78909d;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    padding: 1px 3px;
+}
+
+QLabel#HeaderStatePill {
+    color: #b8cbd4;
+    background: #142630;
+    border: 1px solid #36515e;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+QLabel#HeaderStatePill[active="true"] {
+    color: #baf4e9;
+    background: #12333a;
+    border-color: #2aa89a;
+}
+
+QSplitter#StudioSplitter::handle {
+    background: #09131b;
+    width: 7px;
+}
+
+QSplitter#StudioSplitter::handle:hover {
+    background: #2aa89a;
+}
+
+QScrollArea#SettingsScroll {
+    background: transparent;
+    border: none;
+}
+
+QScrollArea#SettingsScroll > QWidget > QWidget {
+    background: transparent;
 }
 
 QLabel#BrandTitle {
@@ -33,11 +97,43 @@ QLabel#HintLabel {
     padding: 2px 0 4px 0;
 }
 
+QLabel#WarningText, QLabel#ErrorText {
+    color: #ffc98b;
+}
+
+QLabel#WarningBadge, QLabel#ErrorBadge {
+    background: #4a2e17;
+    border: 1px solid #d78a36;
+    border-radius: 16px;
+    color: #ffd9aa;
+    font-size: 17px;
+    font-weight: 700;
+    min-width: 32px;
+    min-height: 32px;
+    max-width: 32px;
+    max-height: 32px;
+}
+
+QLabel#EmptyState {
+    color: #738b99;
+    font-size: 12px;
+    font-style: italic;
+}
+
 QLabel#ChannelPill {
     font-size: 11px;
     color: #9fd4cc;
     background: #143038;
     border: 1px solid #2a4450;
+    border-radius: 8px;
+    padding: 6px 8px;
+}
+
+QLabel#WarningPill {
+    font-size: 11px;
+    color: #ffd5a1;
+    background: #3d2919;
+    border: 1px solid #a96b2d;
     border-radius: 8px;
     padding: 6px 8px;
 }
@@ -70,7 +166,7 @@ QGroupBox::title {
     color: #8fd4c8;
 }
 
-QComboBox, QSpinBox, QLineEdit, QPlainTextEdit {
+QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit, QPlainTextEdit {
     background: #0f1c24;
     border: 1px solid #2a4450;
     border-radius: 8px;
@@ -80,12 +176,20 @@ QComboBox, QSpinBox, QLineEdit, QPlainTextEdit {
     selection-background-color: #1f7a88;
 }
 
-QComboBox:hover, QSpinBox:hover, QPlainTextEdit:hover {
+QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QLineEdit:hover, QPlainTextEdit:hover {
     border-color: #2aa89a;
 }
 
-QComboBox:focus, QSpinBox:focus, QPlainTextEdit:focus {
-    border-color: #2aa89a;
+QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus, QPlainTextEdit:focus {
+    border: 2px solid #37c7b6;
+    padding: 5px 9px;
+}
+
+QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled,
+QLineEdit:disabled, QPlainTextEdit:disabled {
+    background: #101b23;
+    border-color: #1d303b;
+    color: #617581;
 }
 
 QComboBox::drop-down {
@@ -104,6 +208,14 @@ QCheckBox, QRadioButton {
     spacing: 8px;
     padding: 4px 2px;
     color: #d5e4ec;
+}
+
+QCheckBox:focus, QRadioButton:focus {
+    color: #ffffff;
+}
+
+QCheckBox:disabled, QRadioButton:disabled {
+    color: #5f7480;
 }
 
 QCheckBox::indicator, QRadioButton::indicator {
@@ -144,6 +256,11 @@ QPushButton:pressed {
     background: #152830;
 }
 
+QPushButton:focus {
+    border: 2px solid #6bd8cc;
+    padding: 7px 13px;
+}
+
 QPushButton:disabled {
     color: #5a7180;
     background: #14222c;
@@ -175,6 +292,11 @@ QPushButton#GenerateButton:disabled {
     color: #9bb8be;
 }
 
+QPushButton#GenerateButton:focus {
+    border: 2px solid #9af0e6;
+    padding: 6px 18px;
+}
+
 QPushButton#DangerButton {
     background: #2a1c1c;
     border-color: #8a3e3e;
@@ -199,6 +321,11 @@ QPushButton#SecondaryButton:hover {
 QPushButton#SecondaryButton:disabled {
     background: #2a4048;
     color: #7a9098;
+}
+
+QPushButton#SecondaryButton:focus, QPushButton#DangerButton:focus,
+QPushButton#GhostButton:focus, QPushButton#ChipButton:focus {
+    border: 2px solid #6bd8cc;
 }
 
 QPushButton#ChipButton {
@@ -247,6 +374,13 @@ QLabel#PreviewCanvas {
     border: 1px solid #2a4450;
 }
 
+QLabel#PreviewCanvas[emptyState="true"] {
+    background: #0c1820;
+    color: #718894;
+    border: 1px dashed #36505c;
+    font-style: italic;
+}
+
 QLabel#StatValue {
     font-size: 14px;
     font-weight: 600;
@@ -277,15 +411,66 @@ QFrame#PromptRule, QFrame#HeaderRule {
 }
 
 QFrame#HeaderBar {
-    background: #121f28;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 #132934, stop:0.55 #10212b, stop:1 #181d2b);
+    border: 1px solid #31505e;
+    border-radius: 12px;
+}
+
+QFrame#StudioCard, QFrame#RailSurface, QWidget#RailSurface {
+    background: #162530;
     border: 1px solid #2a4450;
     border-radius: 12px;
 }
 
-QFrame#StudioCard {
-    background: #162530;
-    border: 1px solid #2a4450;
+SettingsPanel, QWidget#ActivityPanel {
+    background: #111f29;
+    border: 1px solid #263f4b;
     border-radius: 12px;
+}
+
+QFrame#ErrorCard {
+    background: #2b1c1d;
+    border: 1px solid #8e4949;
+    border-radius: 12px;
+}
+
+QFrame#CanvasSurface, QWidget#CanvasSurface {
+    background: #0a151d;
+    border: 1px solid #223b48;
+    border-radius: 12px;
+}
+
+QWidget#PreviewPanel, QWidget#PreviewStage {
+    background: #08131a;
+    border: 1px solid #203843;
+    border-radius: 12px;
+}
+
+QFrame#InspectorSurface, QWidget#InspectorSurface {
+    background: #13222c;
+    border: 1px solid #294653;
+    border-radius: 12px;
+}
+
+QSplitter::handle {
+    background: #101e27;
+}
+
+QSplitter::handle:horizontal {
+    width: 7px;
+    border-left: 1px solid #213944;
+    border-right: 1px solid #213944;
+}
+
+QSplitter::handle:vertical {
+    height: 7px;
+    border-top: 1px solid #213944;
+    border-bottom: 1px solid #213944;
+}
+
+QSplitter::handle:hover, QSplitter::handle:pressed {
+    background: #2aa89a;
 }
 
 QMenuBar {
@@ -335,10 +520,11 @@ QStatusBar {
 }
 
 QToolTip {
-    background: #0b3d4a;
-    color: #ffffff;
-    border: 1px solid #2aa89a;
-    padding: 6px 8px;
+    background: #142a35;
+    color: #f2f7fa;
+    border: 1px solid #46bfb2;
+    border-radius: 5px;
+    padding: 7px 9px;
 }
 
 QHeaderView::section {
@@ -350,7 +536,7 @@ QHeaderView::section {
     font-weight: 600;
 }
 
-QTableWidget {
+QTableWidget, QTableView {
     background: #0f1c24;
     alternate-background-color: #142430;
     gridline-color: #2a4450;
@@ -359,8 +545,22 @@ QTableWidget {
     border-radius: 8px;
 }
 
-QTableWidget::item:selected {
+QTableWidget::item, QTableView::item {
+    padding: 6px;
+    border-bottom: 1px solid #1f3540;
+}
+
+QTableWidget::item:hover, QTableView::item:hover {
+    background: #18333e;
+}
+
+QTableWidget::item:selected, QTableView::item:selected {
     background: #1f7a88;
+    color: #ffffff;
+}
+
+QTableWidget:focus, QTableView:focus {
+    border: 2px solid #37c7b6;
 }
 
 QScrollBar:vertical {
@@ -375,8 +575,18 @@ QScrollBar::handle:vertical {
     min-height: 24px;
 }
 
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+    background: #3e6672;
+}
+
+QScrollBar::handle:vertical:pressed, QScrollBar::handle:horizontal:pressed {
+    background: #2aa89a;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
     height: 0;
+    background: transparent;
 }
 
 QScrollBar:horizontal {
@@ -387,5 +597,12 @@ QScrollBar:horizontal {
 QScrollBar::handle:horizontal {
     background: #2a4450;
     border-radius: 5px;
+    min-width: 24px;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    width: 0;
+    background: transparent;
 }
 """
