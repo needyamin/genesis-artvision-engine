@@ -38,6 +38,8 @@ class GenerateResult:
     error: str | None = None
     render_time: float = 0.0
     spec: ProjectSpec | None = None
+    youtube_url: str | None = None
+    youtube_error: str | None = None
 
 
 @dataclass
@@ -76,7 +78,29 @@ class VideoFactory:
         control: RenderControl | None = None,
         on_progress: ProgressFn | None = None,
         output_dir: str | Path | None = None,
+        user_prompt: str | None = None,
+        prompt_mode: str | None = None,
+        prompt_quality: str | None = None,
+        youtube_upload: bool = False,
+        youtube_privacy: str | None = None,
     ) -> GenerateResult:
+        prompt = str(user_prompt or "").strip()
+        if prompt:
+            from app.ai.prompt_brief import classify_engine, detect_resolution, prompt_seed, suggested_duration
+
+            engine, style = classify_engine(prompt, engine)
+            if seed is None:
+                seed = prompt_seed(prompt)
+            if duration is None:
+                duration = suggested_duration(prompt)
+            if resolution is None:
+                resolution = detect_resolution(prompt, prompt_quality or "1080")
+            fps = 30 if fps is None else fps
+            audio_enabled = True if audio_enabled is None else audio_enabled
+            thumbnail = True if thumbnail is None else thumbnail
+            random_resolution = False
+            random_fps = False
+            random_duration = False
         spec = self.randomizer.create_project(
             seed=seed,
             engine=engine,
@@ -90,7 +114,58 @@ class VideoFactory:
             random_fps=random_fps,
             random_duration=random_duration,
         )
-        return self.render_spec(spec, control=control, on_progress=on_progress, output_dir=output_dir)
+        if prompt:
+            spec.params["user_prompt"] = prompt
+            spec.params["prompt_mode"] = str(prompt_mode or "offline").strip().lower()
+        result = self.render_spec(spec, control=control, on_progress=on_progress, output_dir=output_dir)
+        if result.success and youtube_upload and result.output_path and result.spec:
+            result = self._maybe_upload_youtube(
+                result,
+                privacy=youtube_privacy,
+                on_progress=on_progress,
+            )
+        return result
+
+    def _maybe_upload_youtube(
+        self,
+        result: GenerateResult,
+        *,
+        privacy: str | None,
+        on_progress: ProgressFn | None,
+    ) -> GenerateResult:
+        from app.publish.youtube import YouTubePublishError, publish_to_youtube
+
+        try:
+            info = publish_to_youtube(
+                video_path=Path(result.output_path),
+                spec=result.spec,
+                config=self.config,
+                thumbnail_path=result.thumbnail_path,
+                privacy=privacy,
+                on_progress=on_progress,
+            )
+            result.youtube_url = info.get("url")
+            if result.project_id and info.get("id"):
+                self.db.update_youtube(result.project_id, info.get("id"), info.get("url"))
+        except YouTubePublishError as exc:
+            logger.warning("YouTube upload skipped: %s", exc)
+            result.youtube_error = str(exc)
+            if on_progress:
+                on_progress(
+                    {
+                        "phase": "youtube",
+                        "message": f"YouTube upload failed: {exc}",
+                        "seed": result.seed,
+                        "engine": result.engine,
+                        "style": result.style,
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001
+            from app.publish.youtube import friendly_google_error
+
+            logger.exception("YouTube upload failed: %s", exc)
+            result.youtube_error = friendly_google_error(exc)
+        return result
 
     def render_spec(
         self,
@@ -128,10 +203,14 @@ class VideoFactory:
             if control and control.stopped:
                 raise InterruptedError("Render cancelled by user")
 
-            # Optional AI creative advisor (cached JSON suggestions only)
-            from app.ai.advisor import maybe_enrich_spec
+            if spec.params.get("user_prompt"):
+                from app.ai.prompt_brief import enrich_from_user_prompt
 
-            spec = maybe_enrich_spec(spec, self.config, on_progress=on_progress)
+                spec = enrich_from_user_prompt(spec, self.config, on_progress=on_progress)
+            else:
+                from app.ai.advisor import maybe_enrich_spec
+
+                spec = maybe_enrich_spec(spec, self.config, on_progress=on_progress)
 
             if control and control.stopped:
                 raise InterruptedError("Render cancelled by user")

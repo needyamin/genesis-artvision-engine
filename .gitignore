@@ -40,6 +40,7 @@ Desktop.ini
 ehthumbs.db
 .idea/
 .vscode/
+.cursor/
 *.swp
 *~
 
@@ -60,6 +61,14 @@ data/ai_catalogs/
 data/ai_scenes/
 data/ai_voice/
 *.db
+
+# YouTube OAuth tokens, quota, and downloaded Desktop-app JSON stay local.
+# Ship only the example client shape.
+data/youtube/*
+!data/youtube/.gitkeep
+!data/youtube/oauth_client.example.json
+**/client_secret*.json
+**/token.json
 
 # TTS scratch next to cached wavs
 *.ssml

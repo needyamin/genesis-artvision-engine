@@ -6,15 +6,15 @@
   <title>Genesis Artvision Engine — Complete Guide · ANSNEW TECH</title>
   <style>
     :root {
-      --bg: #0c1018;
-      --bg-2: #131a26;
-      --card: #171f2e;
-      --line: rgba(255,255,255,.08);
-      --text: #e8eef8;
-      --muted: #9aa8bd;
-      --accent: #7eb6ff;
-      --gold: #e2c07a;
-      --ok: #7dce9a;
+      --bg: #0f1c24;
+      --bg-2: #121f28;
+      --card: #162530;
+      --line: #2a4450;
+      --text: #e8eef4;
+      --muted: #8aa0ad;
+      --accent: #2aa89a;
+      --gold: #8fd4c8;
+      --ok: #2aa89a;
       --max: 46rem;
     }
     * { box-sizing: border-box; }
@@ -24,8 +24,8 @@
       font: 18px/1.65 "Segoe UI", "Candara", "Calibri", system-ui, sans-serif;
       color: var(--text);
       background:
-        radial-gradient(1200px 600px at 10% -10%, #1a2a48 0%, transparent 50%),
-        radial-gradient(900px 500px at 100% 0%, #2a1d12 0%, transparent 45%),
+        radial-gradient(1200px 600px at 10% -10%, #1f7a88 0%, transparent 42%),
+        radial-gradient(900px 500px at 100% 0%, #0b3d4a 0%, transparent 48%),
         var(--bg);
     }
     a { color: var(--accent); text-decoration: none; }
@@ -173,7 +173,7 @@
     <div class="wrap">
       <div class="brand">ANSNEW TECH</div>
       <h1>Genesis Artvision Engine</h1>
-      <p class="lede">A complete guide to the offline procedural art video factory: how it invents a film from a seed, what each engine teaches or paints, and how voice, pictures, and FFmpeg stay on your computer.</p>
+      <p class="lede">A complete guide to the offline procedural art video factory: how a seed becomes a film, what each engine paints, how the dark studio GUI works, and how voice, pictures, and FFmpeg stay on your computer.</p>
     </div>
   </header>
 
@@ -190,6 +190,9 @@
       <a href="#look">Styles and finishing</a>
       <a href="#audio">Sound and voice</a>
       <a href="#ai">Optional AI advisor</a>
+      <a href="#prompt">Prompt window</a>
+      <a href="#youtube">YouTube upload</a>
+      <a href="#studio">Dark studio GUI</a>
       <a href="#use">Using the app</a>
       <a href="#seeds">Seeds and history</a>
       <a href="#arch">Architecture</a>
@@ -200,7 +203,7 @@
 
     <article>
       <p class="pill">Product article</p>
-      <p>Genesis Artvision Engine is desktop software from <strong>ANSNEW TECH</strong>. You do not import clips, write a script, or pick a beat of music. You press Generate. The factory rolls a seed, chooses an art engine and a visual style, paints every frame procedurally, writes a soundtrack, and pipes the result into FFmpeg as an MP4.</p>
+      <p>Genesis Artvision Engine is desktop software from <strong>ANSNEW TECH</strong>. You do not import clips, write a script, or pick a beat of music. You press <strong>GENERATE VIDEO</strong>. The factory rolls a seed, chooses an art engine and a visual style, paints every frame procedurally, writes a soundtrack, and pipes the result into FFmpeg as an MP4.</p>
       <p>That is the whole promise: <em>invention, not assembly</em>. The same program can emit a picture-book story a child can follow, a classroom how-it-works diagram, or a kinetic brief about something trending this week. Nothing in the finished file is downloaded as stock video. Pictures are drawn locally. Voice is Windows text-to-speech when it is available, otherwise an offline voice.</p>
 
       <h2 id="idea">The idea</h2>
@@ -227,9 +230,9 @@
         <li><strong>Offline pictures.</strong> Word cards and suggested scenes are drawn with Pillow on disk.</li>
         <li><strong>Audio.</strong> Procedural music, kids narration, or documentary speech, written as WAV.</li>
         <li><strong>Render.</strong> Each frame is drawn, graded, faded, then piped as raw RGB into FFmpeg with the WAV.</li>
-        <li><strong>Output.</strong> An MP4 (and usually a thumbnail JPEG) lands in <code>output/</code>. Temp files are cleaned on success.</li>
+        <li><strong>Output.</strong> An MP4 (and usually a thumbnail JPEG) lands in <code>output/</code>. Temp files are cleaned on success. If YouTube upload is on, the official Data API sends that file to your connected channel.</li>
       </ol>
-      <p>The GUI stays responsive because generate runs on a worker thread. Progress shows phase, seed, engine, and — when the advisor is on — what the offline illustrator is drawing.</p>
+      <p>The GUI stays responsive because generate runs on a worker thread. Progress shows phase, seed, engine, and — when the advisor is on — what the offline illustrator is drawing. Speech timing holds each picture until that line of voice finishes, so the next card does not appear while the narrator is still talking.</p>
 
       <h2 id="engines">Three engines</h2>
       <p>Engines are the “what am I looking at.” Styles are the “how it is graded and moved.” The engine owns the concept — story, diagram, or trend — so Random never mixes a kids story with a ticker brief.</p>
@@ -270,7 +273,7 @@
         <li><strong>Kids Storybook:</strong> soft pad, page chimes, and slow narration aligned to story pages.</li>
         <li><strong>How It Works / Trending Brief:</strong> calmer speech mixed under a quieter bed.</li>
       </ul>
-      <p>If audio generation fails, the video can still encode silent. Check <code>logs/</code>. Disable audio in the GUI or with <code>--no-audio</code> when you only need picture.</p>
+      <p>If audio generation fails, the video can still encode silent. Check <code>logs/</code>. Disable audio in the GUI or with <code>--no-audio</code> when you only need picture. Kids and classroom cards hold on screen until that spoken line ends.</p>
 
       <h2 id="ai">Optional AI advisor</h2>
       <p>OpenRouter is <strong>off by default</strong>. When you turn it on, it is a creative director, not a renderer. It returns JSON: possible story or topic title, short voice lines, image briefs, overlay titles. Then:</p>
@@ -280,7 +283,30 @@
         <li>Same seed hits a disk cache under <code>data/ai_cache/</code> so you are not billed twice for a reprint.</li>
       </ol>
       <p>Put <code>OPENROUTER_API_KEY</code> in a root <code>.env</code> copied from <code>.env.example</code>. Never commit <code>.env</code>. Cheapest path: run <code>python main.py --curate</code> once, then generate offline.</p>
-      <p>Per-video advisor: GUI Extras checkbox, or <code>python main.py --generate --ai --engine kids_storybook</code>. If a model returns HTTP 402, add credits or stay on <code>openai/gpt-4o-mini</code> in <code>config.yaml</code>.</p>
+      <p>Per-video advisor: check <strong>AI advisor</strong> in the Output panel, or <code>python main.py --generate --ai --engine kids_storybook</code>. If a model returns HTTP 402, add credits or stay on <code>openai/gpt-4o-mini</code> in <code>config.yaml</code>.</p>
+
+      <h2 id="prompt">Prompt window</h2>
+      <p>Open <strong>Prompt</strong> from the studio menu, the footer chip, or <kbd>Ctrl+P</kbd>. A new window asks what the film should be. Pick <strong>Offline</strong> (local plan, no internet) or <strong>AI suggestion</strong> (OpenRouter writes the plan), choose engine / Full HD or 4K / length, then submit. The factory still paints every frame on this machine. Pictures stay on screen until each spoken line finishes. The same prompt words hash to the same seed.</p>
+
+      <h2 id="youtube">YouTube upload</h2>
+      <p>You can generate a film and then upload it to <strong>your</strong> channel with an SEO title, hashtags, tags, and a 1280×720 title card. That path uses Google’s official YouTube Data API (OAuth desktop app + <code>videos.insert</code> / <code>thumbnails.set</code>). It is not a scraper and does not bypass sign-in.</p>
+      <ol>
+        <li>In Google Cloud Console enable <strong>YouTube Data API v3</strong> and create an OAuth client of type <strong>Desktop app</strong>.</li>
+        <li>Credentials go in either <code>data/youtube/client_secret.json</code> (copy the shape from <code>oauth_client.example.json</code>) or <code>YOUTUBE_CLIENT_ID</code> / <code>YOUTUBE_CLIENT_SECRET</code> in root <code>.env</code>. Both are gitignored.</li>
+        <li>In the GUI: <strong>YouTube → Connect / switch channel…</strong> Google opens a browser. If you run several channels, pick the <strong>Brand Account</strong> whose name matches the one you want — not only your Gmail.</li>
+        <li>Check <strong>Upload to YouTube</strong>. Privacy defaults to Unlisted. Kids Storybook is declared Made for Kids. Default quota is about six uploads a day (<code>youtube.daily_limit</code>).</li>
+      </ol>
+      <p>After encode, a <strong>result card</strong> shows the thumbnail, seed, local path, and either the channel plus a <code>youtu.be</code> link or a short API fix — never a raw 403 blob. If the API is off for that Cloud project, enable it, wait a few minutes, and generate again; the MP4 is already in <code>output/</code>. Wrong channel: Connect / switch and pick a different Brand Account. CLI: <code>python main.py --generate --youtube</code> after you have connected in the GUI.</p>
+
+      <h2 id="studio">Dark studio GUI</h2>
+      <p>The window is the same deep navy as the live preview (<code>#0f1c24</code>), with teal generate and ink cards. A header holds the app icon, <strong>GENESIS ARTVISION</strong> / ANSNEW TECH, and a dark menu so Windows does not paint a light strip on top.</p>
+      <ul>
+        <li><strong>File</strong> — open output, history, clean temp files.</li>
+        <li><strong>Prompt</strong> — write a brief (<kbd>Ctrl+P</kbd>).</li>
+        <li><strong>YouTube</strong> — connect or switch, which channel, Studio, disconnect.</li>
+        <li><strong>Help</strong> — About.</li>
+      </ul>
+      <p>Primary actions sit under settings: GENERATE VIDEO, Pause, Resume, Stop. Footer chips repeat output / history / prompt / clean in the same dark chrome. Dialogs share one studio shell. History stays its own table window; Prompt stays its own editor.</p>
 
       <h2 id="use">Using the app</h2>
       <h3>Requirements</h3>
@@ -291,7 +317,7 @@
       </ul>
       <h3>GUI</h3>
       <pre>python main.py</pre>
-      <p>The window opens maximized. Set duration, resolution (Full HD and 4K, landscape, vertical, square), fps, count, engine, and style. Random is a valid choice for engine and style. Press <strong>GENERATE</strong>. Preview updates during encode. History lists finished jobs; you can re-generate from seed. Clean Temporary Files if <code>temp/</code> grows.</p>
+      <p>The window opens maximized. Set duration, resolution (Full HD and 4K, landscape, vertical, square), fps, count, engine, and style. Random is a valid choice for engine and style. Press <strong>GENERATE VIDEO</strong>. Or open <strong>Prompt</strong> (<kbd>Ctrl+P</kbd>), type a brief, and generate from those words. Preview updates during encode. <strong>File → History</strong> lists finished jobs; <strong>Make again from seed</strong> reprints one. <strong>File → Clean temp files</strong> if <code>temp/</code> grows.</p>
       <h3>CLI</h3>
       <pre>python main.py --generate
 python main.py --generate --count 10
@@ -299,8 +325,11 @@ python main.py --generate --engine kids_storybook --style storybook --duration 3
 python main.py --generate --engine how_it_works --style classroom
 python main.py --generate --engine trend_brief --style pulse
 python main.py --generate --seed 847293847 --resolution 1920x1080 --fps 30
+python main.py --prompt "A bedtime story about a brave orange cat"
+python main.py --prompt "Explain how rain is made" --ai
+python main.py --generate --youtube --engine how_it_works
 python main.py --test</pre>
-      <p><code>--test</code> is a 320×180, 10 fps, 3 second smoke render. <code>--curate</code> expands offline catalogs. <code>--output</code> can redirect the folder.</p>
+      <p><code>--test</code> is a 320×180, 10 fps, 3 second smoke render. <code>--curate</code> expands offline catalogs. <code>--youtube</code> uploads after encode if a channel is already connected. <code>--output</code> can redirect the folder.</p>
       <h3>Config</h3>
       <p><code>config.yaml</code> holds default resolution, duration options, bitrate (8M Full HD, 35M 4K), engine list, style list, and the AI block. GUI choices override for that run. Logs go to <code>logs/</code>. SQLite history is <code>data/history.db</code>.</p>
 
@@ -312,12 +341,14 @@ python main.py --test</pre>
       <pre>main.py                 GUI or CLI entry, loads .env
 config.yaml             defaults
 app/art/                engines, story catalog, diagrams, word cards
-app/audio/              kids TTS, documentary, procedural music
-app/ai/                 advisor, schemas, offline realize, curate
+app/audio/              kids TTS, documentary, procedural music, speech holds
+app/ai/                 advisor, schemas, offline realize, curate, prompt brief
 app/core/               randomizer, VideoFactory
-app/gui/                PySide6 window, settings, progress
+app/gui/                dark studio window, settings, progress, dialogs
+app/publish/            YouTube Data API, SEO, title-card thumbnail
 app/video/              FFmpeg pipe, grade
 app/database/           history
+data/youtube/           OAuth example only — tokens stay gitignored
 output/  temp/  data/   products, scratch, caches
 tests/                  pytest</pre>
       <p>Each engine subclasses <code>ArtEngine</code>, registers with <code>@register_engine</code>, and returns uint8 RGB frames. The factory owns the order: enrich spec → build story or topic → realize local images → audio → render. Kids video and kids audio share one <code>education_lesson</code> dict so they cannot drift apart. Topic engines share <code>topic_data</code>.</p>
@@ -328,7 +359,8 @@ tests/                  pytest</pre>
         <li>Kids illustrations: local Pillow, cached as PNG.</li>
         <li>Kids/documentary voice: Windows SAPI or offline synth — not a paid cloud TTS API.</li>
         <li>OpenRouter, if you enable it, sends a text prompt about the spec and receives JSON. It does not receive your MP4.</li>
-        <li>API keys live in <code>.env</code>, which is gitignored.</li>
+        <li>YouTube upload, if you enable it, sends the finished MP4 to Google with OAuth you control. Tokens and <code>client_secret.json</code> stay in gitignored <code>data/youtube/</code>.</li>
+        <li>API keys live in <code>.env</code>, which is gitignored. Commit <code>.env.example</code> only.</li>
       </ul>
 
       <h2 id="extend">Extending it</h2>
@@ -341,7 +373,9 @@ tests/                  pytest</pre>
       <p><strong>Why is kids speech slow?</strong> So a child can follow the page. Adult documentary speech stays medium.</p>
       <p><strong>Can it make photoreal people?</strong> No. The offline illustrator is a stylized painter. That is intentional: no stock, no face models.</p>
       <p><strong>Linux / macOS?</strong> FFmpeg + Python should render. Kids SAPI is Windows; other platforms use the procedural voice fallback.</p>
-      <p><strong>Where do I start?</strong> Install FFmpeg, <code>pip install -r requirements.txt</code>, <code>python main.py</code>, press Generate. For a story, set engine to Kids Storybook and style to Storybook.</p>
+      <p><strong>YouTube said the Data API is not used?</strong> Enable YouTube Data API v3 on the same Cloud project as the OAuth client, wait two to five minutes, then generate again. The MP4 is already saved.</p>
+      <p><strong>Uploads went to the wrong channel?</strong> YouTube → Connect / switch channel… and choose the Brand Account, not only Gmail.</p>
+      <p><strong>Where do I start?</strong> Install FFmpeg, <code>pip install -r requirements.txt</code>, <code>python main.py</code>, press GENERATE VIDEO. For a story, set engine to Kids Storybook and style to Storybook.</p>
       <p>Shorter install notes also live in <a href="../README.md">README.md</a>.</p>
     </article>
   </div>

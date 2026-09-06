@@ -57,6 +57,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "catalog_dir": "./data/ai_catalogs",
         "per_video": False,
     },
+    "youtube": {
+        "enabled": False,
+        "privacy": "unlisted",
+        "daily_limit": 6,
+        "client_secret": "./data/youtube/client_secret.json",
+        "token": "./data/youtube/token.json",
+    },
 }
 
 

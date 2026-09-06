@@ -42,9 +42,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable OpenRouter creative advisor for this run (per-video suggestions)",
     )
     parser.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        help="Generate one video from this prompt (offline plan; add --ai for OpenRouter)",
+    )
+    parser.add_argument(
         "--curate",
         action="store_true",
         help="Expand offline catalogs via OpenRouter (no video render)",
+    )
+    parser.add_argument(
+        "--youtube",
+        action="store_true",
+        help="After generating, upload to your connected YouTube channel",
     )
     parser.add_argument(
         "--letters",
@@ -124,6 +135,12 @@ def run_cli(args: argparse.Namespace) -> int:
         }
         if args.output:
             overrides["output_dir"] = args.output
+    if args.prompt:
+        overrides["user_prompt"] = args.prompt
+        overrides["prompt_mode"] = "ai" if args.ai else "offline"
+        overrides["count"] = args.count or 1
+    if args.youtube:
+        overrides["youtube_upload"] = True
 
     factory = VideoFactory(config)
     results = factory.generate_batch(**{k: v for k, v in overrides.items() if v is not None})
@@ -132,6 +149,10 @@ def run_cli(args: argparse.Namespace) -> int:
     for r in results:
         status = "OK" if r.success else "FAIL"
         print(f"  [{status}] seed={r.seed} engine={r.engine} -> {r.output_path}")
+        if getattr(r, "youtube_url", None):
+            print(f"         youtube: {r.youtube_url}")
+        if getattr(r, "youtube_error", None):
+            print(f"         youtube error: {r.youtube_error}")
         if r.error:
             print(f"         error: {r.error}")
     return 0 if ok == len(results) else 1
@@ -150,11 +171,14 @@ def run_gui(args: argparse.Namespace) -> int:
     from PySide6.QtWidgets import QApplication
     from app.gui.branding import apply_app_icon, apply_windows_app_id
     from app.gui.main_window import MainWindow
+    from app.gui.styles import APP_STYLE
 
     apply_windows_app_id()
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
     app.setApplicationName("Genesis Artvision Engine")
     app.setOrganizationName("ANSNEW TECH")
+    app.setStyleSheet(APP_STYLE)
     apply_app_icon(app)
     window = MainWindow(config)
     apply_app_icon(window)
@@ -170,7 +194,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.curate:
         return run_curate(args)
-    if args.generate or args.test:
+    if args.generate or args.test or args.prompt:
         return run_cli(args)
     return run_gui(args)
 

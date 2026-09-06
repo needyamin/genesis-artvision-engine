@@ -17,7 +17,7 @@ class PreviewPanel(QWidget):
         box = QGroupBox("Live preview")
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         inner = QVBoxLayout(box)
-        inner.setContentsMargins(10, 8, 10, 10)
+        inner.setContentsMargins(12, 12, 12, 12)
         self.label = QLabel("Your art preview will appear here\nwhile a video is generating")
         self.label.setObjectName("PreviewCanvas")
         self.label.setMinimumHeight(160)

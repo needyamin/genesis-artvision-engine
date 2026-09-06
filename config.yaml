@@ -70,3 +70,12 @@ ai:
   cache_dir: "./data/ai_cache"
   catalog_dir: "./data/ai_catalogs"
   per_video: false
+
+# YouTube Data API v3 — upload to a channel you own (OAuth, not a scraper).
+# Save Desktop-app client_secret JSON under data/youtube/ then YouTube → Connect channel.
+youtube:
+  enabled: false
+  privacy: unlisted
+  daily_limit: 6
+  client_secret: "./data/youtube/client_secret.json"
+  token: "./data/youtube/token.json"

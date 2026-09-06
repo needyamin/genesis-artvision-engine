@@ -73,7 +73,7 @@ class SettingsPanel(QWidget):
         # ---- Video (top-left) ----
         video_box = QGroupBox("Video")
         vg = QGridLayout(video_box)
-        vg.setContentsMargins(10, 8, 10, 8)
+        vg.setContentsMargins(12, 10, 12, 10)
         vg.setHorizontalSpacing(10)
         vg.setVerticalSpacing(8)
 
@@ -126,7 +126,7 @@ class SettingsPanel(QWidget):
         # ---- Art (top-right) ----
         art_box = QGroupBox("Art")
         ag = QGridLayout(art_box)
-        ag.setContentsMargins(10, 8, 10, 8)
+        ag.setContentsMargins(12, 10, 12, 10)
         ag.setHorizontalSpacing(10)
         ag.setVerticalSpacing(8)
 
@@ -155,7 +155,7 @@ class SettingsPanel(QWidget):
         # ---- Batch (bottom-left) ----
         batch_box = QGroupBox("Batch")
         bg = QVBoxLayout(batch_box)
-        bg.setContentsMargins(10, 8, 10, 8)
+        bg.setContentsMargins(12, 10, 12, 10)
         bg.setSpacing(8)
 
         row = QHBoxLayout()
@@ -185,7 +185,7 @@ class SettingsPanel(QWidget):
         # ---- Output (bottom-right) ----
         extras = QGroupBox("Output")
         eg = QVBoxLayout(extras)
-        eg.setContentsMargins(10, 8, 10, 8)
+        eg.setContentsMargins(12, 10, 12, 10)
         eg.setSpacing(8)
         self.proc_audio = QCheckBox("Soundtrack")
         self.proc_audio.setChecked(bool(self.config.get("audio", {}).get("enabled", True)))
@@ -207,9 +207,35 @@ class SettingsPanel(QWidget):
         self.ai_status = QLabel("")
         self.ai_status.hide()
 
+        yt_cfg = self.config.get("youtube") or {}
+        self.youtube_upload = QCheckBox("Upload to YouTube")
+        self.youtube_upload.setChecked(bool(yt_cfg.get("enabled")))
+        self.youtube_upload.setToolTip(
+            "After each video is saved, upload it with an SEO title, hashtags, and thumbnail. "
+            "Connect your channel first (YouTube menu). Default privacy is Unlisted."
+        )
+        self.youtube_privacy = QComboBox()
+        self.youtube_privacy.addItem("Unlisted", userData="unlisted")
+        self.youtube_privacy.addItem("Public", userData="public")
+        self.youtube_privacy.addItem("Private", userData="private")
+        priv = str(yt_cfg.get("privacy") or "unlisted")
+        idx = self.youtube_privacy.findData(priv)
+        if idx >= 0:
+            self.youtube_privacy.setCurrentIndex(idx)
+        self.youtube_privacy.setToolTip("Unlisted is safest while you review. Public goes live on the channel.")
+        self.youtube_channel = QLabel("Channel: not connected")
+        self.youtube_channel.setObjectName("ChannelPill")
+        self.youtube_channel.setWordWrap(True)
+
         eg.addWidget(self.proc_audio)
         eg.addWidget(self.gen_thumb)
         eg.addWidget(self.ai_advisor)
+        eg.addWidget(self.youtube_upload)
+        priv_row = QHBoxLayout()
+        priv_row.addWidget(QLabel("YouTube"))
+        priv_row.addWidget(self.youtube_privacy, 1)
+        eg.addLayout(priv_row)
+        eg.addWidget(self.youtube_channel)
         eg.addStretch(1)
 
         root.addWidget(video_box, 0, 0)
@@ -252,4 +278,10 @@ class SettingsPanel(QWidget):
             "thumbnail": self.gen_thumb.isChecked(),
             "ai_enabled": self.ai_advisor.isChecked(),
             "ai_per_video": self.ai_advisor.isChecked(),
+            "youtube_upload": self.youtube_upload.isChecked(),
+            "youtube_privacy": str(self.youtube_privacy.currentData() or "unlisted"),
         }
+
+    def set_youtube_channel(self, label: str) -> None:
+        text = (label or "").strip() or "not connected"
+        self.youtube_channel.setText(f"Uploads go to: {text}")

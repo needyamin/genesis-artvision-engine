@@ -54,6 +54,16 @@ JSON: title, fun_facts (hook first), voice_lines, metrics [{label, val, unit}], 
 Each visual_beat: phase (HOOK/WHY/CATCH/NEXT), overlay_text, caption, fact, voice_line.
 This engine draws the brief."""
 
+SYSTEM_PROMPT_DIRECTOR = """You are a creative director for Genesis Artvision Engine, an OFFLINE procedural art video factory.
+The user wrote a prompt. Turn THAT prompt into a high-quality video plan the local engines can paint.
+Return ONLY a JSON object (no markdown). Never invent image URLs or external assets.
+Pick exactly one engine:
+- kids_storybook: ages 3–7 picture book (animals, weather, friendship). Style must be storybook.
+- how_it_works: everyday classroom explainer (rain, heart, electricity). Style must be classroom.
+- trend_brief: kinetic brief about a current-web topic. Style must be pulse.
+Follow the user's topic closely. Write 5–6 concrete visual_beats with spoken voice_lines.
+High production: strong titles, readable captions, one picture noun per kids page, no filler."""
+
 SYSTEM_CURATE = """You expand offline kids story catalogs for a picture-book video app.
 Return ONLY a JSON object (no markdown). Content must be age 3–7 friendly.
 Words should be simple nouns kids know. Facts and voice lines must be short (under 12 words when possible)."""
@@ -215,6 +225,38 @@ def advisor_user_prompt(
         f"{_engine_rules(engine)}\n"
         f"Return JSON matching this shape: {json.dumps(_schema_for_engine(engine, style))}\n"
         f"{closing}"
+    )
+
+
+def prompt_director_user_prompt(
+    *,
+    user_prompt: str,
+    engine: str | None,
+    style: str | None,
+) -> str:
+    locked = ""
+    if engine:
+        sty = style or {"kids_storybook": "storybook", "how_it_works": "classroom", "trend_brief": "pulse"}.get(
+            engine, "storybook"
+        )
+        locked = (
+            f"LOCKED engine={engine} style={sty}. Do not switch engines.\n"
+            f"{ENGINE_GUIDES.get(engine, '')}\n"
+            f"{_engine_rules(engine)}\n"
+            f"Return JSON matching this shape plus an \"engine\" field equal to \"{engine}\": "
+            f"{json.dumps(_schema_for_engine(engine, sty))}\n"
+        )
+    else:
+        locked = (
+            "Choose the best engine for the user's prompt. Put it in JSON as \"engine\".\n"
+            "kids_storybook → storybook. how_it_works → classroom. trend_brief → pulse.\n"
+            "Also return title, voice_lines, visual_beats (5–6), and engine-specific fields.\n"
+        )
+    return (
+        f"USER PROMPT:\n{user_prompt.strip()}\n\n"
+        f"{locked}"
+        "Make the video feel high quality: specific nouns, short spoken lines, clear headlines.\n"
+        "Kids pages need word (uppercase noun) and image_brief. Explainers need phase + voice_line."
     )
 
 

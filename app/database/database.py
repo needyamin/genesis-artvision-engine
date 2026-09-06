@@ -28,6 +28,8 @@ class HistoryRow:
     thumbnail_path: str | None
     render_time: float
     status: str
+    youtube_id: str | None = None
+    youtube_url: str | None = None
 
 
 class Database:
@@ -73,6 +75,11 @@ class Database:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_videos_seed ON videos(seed)"
             )
+            existing = {row[1] for row in conn.execute("PRAGMA table_info(videos)").fetchall()}
+            if "youtube_id" not in existing:
+                conn.execute("ALTER TABLE videos ADD COLUMN youtube_id TEXT")
+            if "youtube_url" not in existing:
+                conn.execute("ALTER TABLE videos ADD COLUMN youtube_url TEXT")
             conn.commit()
 
     def insert_video(self, row: HistoryRow) -> int:
@@ -138,7 +145,23 @@ class Database:
             thumbnail_path=r["thumbnail_path"],
             render_time=r["render_time"],
             status=r["status"],
+            youtube_id=r["youtube_id"] if "youtube_id" in r.keys() else None,
+            youtube_url=r["youtube_url"] if "youtube_url" in r.keys() else None,
         )
+
+    def update_youtube(self, project_id: str, youtube_id: str | None, youtube_url: str | None) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE videos
+                SET youtube_id = ?, youtube_url = ?
+                WHERE project_id = ? AND id = (
+                    SELECT id FROM videos WHERE project_id = ? ORDER BY id DESC LIMIT 1
+                )
+                """,
+                (youtube_id, youtube_url, project_id, project_id),
+            )
+            conn.commit()
 
     @staticmethod
     def params_to_json(params: dict[str, Any]) -> str:

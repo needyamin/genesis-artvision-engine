@@ -24,7 +24,7 @@ class ProgressPanel(QWidget):
         box = QGroupBox("Progress")
         box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         inner = QVBoxLayout(box)
-        inner.setContentsMargins(12, 10, 12, 10)
+        inner.setContentsMargins(12, 12, 12, 12)
         inner.setSpacing(8)
 
         self.bar = QProgressBar()

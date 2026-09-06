@@ -14,11 +14,12 @@ from PySide6.QtGui import QAction, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QMainWindow,
-    QMessageBox,
+    QMenuBar,
     QPushButton,
     QStatusBar,
     QTableWidget,
@@ -30,9 +31,10 @@ from PySide6.QtWidgets import (
 from app.core.generator import VideoFactory
 from app.core.project import clean_all_temp
 from app.gui.branding import apply_app_icon, app_logo_path
+from app.gui.dialogs import ResultDialog, about_dialog, studio_info, studio_warn
 from app.gui.preview_panel import PreviewPanel
 from app.gui.progress_panel import ProgressPanel
-from app.gui.settings_panel import SettingsPanel
+from app.gui.settings_panel import SettingsPanel, engine_label, style_label
 from app.gui.styles import APP_STYLE
 from app.utils.paths import resolve_path
 from app.video.ffmpeg import check_ffmpeg
@@ -72,6 +74,11 @@ class GenerateWorker(QThread):
                 random_fps=self.options.get("random_fps", False),
                 random_duration=self.options.get("random_duration", False),
                 seed=self.options.get("seed"),
+                user_prompt=self.options.get("user_prompt"),
+                prompt_mode=self.options.get("prompt_mode"),
+                prompt_quality=self.options.get("prompt_quality"),
+                youtube_upload=bool(self.options.get("youtube_upload")),
+                youtube_privacy=self.options.get("youtube_privacy"),
             )
             self.finished_batch.emit(results)
         except Exception as exc:  # noqa: BLE001
@@ -86,8 +93,14 @@ class HistoryDialog(QDialog):
         self.factory = factory
         self.setWindowTitle("Video history — Genesis Artvision Engine")
         apply_app_icon(self)
+        self.setStyleSheet(APP_STYLE)
         self.resize(920, 500)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 16, 18, 14)
+        layout.setSpacing(12)
+        heading = QLabel("History")
+        heading.setObjectName("DialogTitle")
+        layout.addWidget(heading)
         hint = QLabel("Select a video, then open it or recreate it with the same seed.")
         hint.setObjectName("HintLabel")
         layout.addWidget(hint)
@@ -104,10 +117,13 @@ class HistoryDialog(QDialog):
 
         buttons = QHBoxLayout()
         self.open_btn = QPushButton("Open video")
-        self.open_btn.setObjectName("SecondaryButton")
+        self.open_btn.setObjectName("GenerateButton")
         self.folder_btn = QPushButton("Open folder")
+        self.folder_btn.setObjectName("SecondaryButton")
         self.regen_btn = QPushButton("Make again from seed")
+        self.regen_btn.setObjectName("SecondaryButton")
         self.close_btn = QPushButton("Close")
+        self.close_btn.setObjectName("GhostButton")
         buttons.addWidget(self.open_btn)
         buttons.addWidget(self.folder_btn)
         buttons.addWidget(self.regen_btn)
@@ -151,7 +167,7 @@ class HistoryDialog(QDialog):
     def _selected(self):
         rows = self.table.selectionModel().selectedRows()
         if not rows:
-            QMessageBox.information(self, "Nothing selected", "Click a row in the table first.")
+            studio_info(self, "Nothing selected", "Click a row in the table first.")
             return None
         return self._rows[rows[0].row()]
 
@@ -163,7 +179,7 @@ class HistoryDialog(QDialog):
         if path.exists():
             self._open_path(path)
         else:
-            QMessageBox.warning(self, "Missing file", f"File not found:\n{path}")
+            studio_warn(self, "Missing file", f"File not found:\n{path}")
 
     def _open_folder(self) -> None:
         row = self._selected()
@@ -179,13 +195,14 @@ class HistoryDialog(QDialog):
         self.accept()
 
     @staticmethod
-    def _open_path(path: Path) -> None:
+    def _open_path(path: Path | str) -> None:
+        target = str(path)
         if sys.platform.startswith("win"):
-            os.startfile(path)  # type: ignore[attr-defined]
+            os.startfile(target)  # type: ignore[attr-defined]
         elif sys.platform == "darwin":
-            subprocess.Popen(["open", str(path)])
+            subprocess.Popen(["open", target])
         else:
-            subprocess.Popen(["xdg-open", str(path)])
+            subprocess.Popen(["xdg-open", target])
 
 
 class MainWindow(QMainWindow):
@@ -212,25 +229,51 @@ class MainWindow(QMainWindow):
         self._check_ffmpeg()
 
     def _build_ui(self) -> None:
+        native = self.menuBar()
+        native.setNativeMenuBar(False)
+        native.hide()
+
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
         root.setContentsMargins(16, 10, 16, 10)
         root.setSpacing(8)
 
-        header = QVBoxLayout()
-        header.setSpacing(0)
-        title = QLabel("GENESIS ARTVISION ENGINE")
+        header = QFrame()
+        header.setObjectName("HeaderBar")
+        bar = QHBoxLayout(header)
+        bar.setContentsMargins(12, 8, 10, 8)
+        bar.setSpacing(12)
+
+        logo = QLabel()
+        pix = QPixmap(str(app_logo_path()))
+        if not pix.isNull():
+            logo.setPixmap(
+                pix.scaled(
+                    40,
+                    40,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+        bar.addWidget(logo)
+
+        brand = QVBoxLayout()
+        brand.setSpacing(0)
+        title = QLabel("GENESIS ARTVISION")
         title.setObjectName("BrandTitle")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.addWidget(title)
-
-        company = QLabel("by ANSNEW TECH")
+        company = QLabel("ANSNEW TECH")
         company.setObjectName("BrandSub")
-        company.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.addWidget(company)
+        brand.addWidget(title)
+        brand.addWidget(company)
+        bar.addLayout(brand)
+        bar.addStretch(1)
 
-        root.addLayout(header)
+        self._studio_menu = QMenuBar()
+        self._studio_menu.setNativeMenuBar(False)
+        self._fill_studio_menu(self._studio_menu)
+        bar.addWidget(self._studio_menu, 0, Qt.AlignmentFlag.AlignVCenter)
+        root.addWidget(header)
 
         # Settings: fixed height section (2×2 grid) — always fully visible
         self.settings = SettingsPanel(self.config)
@@ -273,13 +316,20 @@ class MainWindow(QMainWindow):
         secondary = QHBoxLayout()
         secondary.setSpacing(8)
         self.output_btn = QPushButton("Open output folder")
+        self.output_btn.setObjectName("ChipButton")
         self.output_btn.setToolTip("Open the folder where finished MP4 files are saved.")
         self.history_btn = QPushButton("History")
+        self.history_btn.setObjectName("ChipButton")
         self.history_btn.setToolTip("Browse past videos and recreate any seed.")
+        self.prompt_btn = QPushButton("Prompt")
+        self.prompt_btn.setObjectName("ChipButton")
+        self.prompt_btn.setToolTip("Open a window, type a prompt, and generate a video from it.")
         self.clean_btn = QPushButton("Clean temp files")
+        self.clean_btn.setObjectName("ChipButton")
         self.clean_btn.setToolTip("Delete leftover temporary render files.")
         secondary.addWidget(self.output_btn)
         secondary.addWidget(self.history_btn)
+        secondary.addWidget(self.prompt_btn)
         secondary.addWidget(self.clean_btn)
         secondary.addStretch(1)
         root.addLayout(secondary)
@@ -297,22 +347,58 @@ class MainWindow(QMainWindow):
         self.resume_btn.clicked.connect(self.resume_generate)
         self.output_btn.clicked.connect(self.open_output)
         self.history_btn.clicked.connect(self.show_history)
+        self.prompt_btn.clicked.connect(self.open_prompt_window)
         self.clean_btn.clicked.connect(self.clean_temp)
 
         self._set_running(False)
 
-        about = QAction("About", self)
-        about.triggered.connect(self._about)
-        help_menu = self.menuBar().addMenu("Help")
-        help_menu.addAction(about)
-
         status = QStatusBar()
         self.setStatusBar(status)
         self.statusBar().showMessage("Ready")
+        self._refresh_youtube_channel_label()
+
+    def _fill_studio_menu(self, bar: QMenuBar) -> None:
+        file_menu = bar.addMenu("File")
+        open_out = QAction("Open output folder", self)
+        open_out.triggered.connect(self.open_output)
+        file_menu.addAction(open_out)
+        history = QAction("History", self)
+        history.triggered.connect(self.show_history)
+        file_menu.addAction(history)
+        clean = QAction("Clean temp files", self)
+        clean.triggered.connect(self.clean_temp)
+        file_menu.addAction(clean)
+
+        prompt_menu = bar.addMenu("Prompt")
+        write_prompt = QAction("Write a prompt…", self)
+        write_prompt.setShortcut("Ctrl+P")
+        write_prompt.triggered.connect(self.open_prompt_window)
+        prompt_menu.addAction(write_prompt)
+
+        yt_menu = bar.addMenu("YouTube")
+        connect_yt = QAction("Connect / switch channel…", self)
+        connect_yt.setToolTip("Google will ask which account or Brand Account to use.")
+        connect_yt.triggered.connect(self.connect_youtube)
+        yt_menu.addAction(connect_yt)
+        which_yt = QAction("Which channel is connected?", self)
+        which_yt.triggered.connect(self.show_youtube_channel)
+        yt_menu.addAction(which_yt)
+        studio = QAction("Open this channel in Studio", self)
+        studio.triggered.connect(self._open_youtube_studio)
+        yt_menu.addAction(studio)
+        disconnect_yt = QAction("Disconnect", self)
+        disconnect_yt.triggered.connect(self.disconnect_youtube)
+        yt_menu.addAction(disconnect_yt)
+
+        help_menu = bar.addMenu("Help")
+        about = QAction("About", self)
+        about.triggered.connect(self._about)
+        help_menu.addAction(about)
 
     def _set_running(self, running: bool) -> None:
         self.generate_btn.setEnabled(not running)
         self.settings.setEnabled(not running)
+        self.prompt_btn.setEnabled(not running)
         self.stop_btn.setEnabled(running)
         self.pause_btn.setEnabled(running)
         self.resume_btn.setEnabled(False)
@@ -321,7 +407,7 @@ class MainWindow(QMainWindow):
         ok, msg = check_ffmpeg()
         if not ok:
             self.statusBar().showMessage("FFmpeg missing — install FFmpeg before generating videos")
-            QMessageBox.warning(
+            studio_warn(
                 self,
                 "FFmpeg required",
                 "FFmpeg was not found on this computer.\n\n"
@@ -330,7 +416,15 @@ class MainWindow(QMainWindow):
             )
         else:
             short = msg.split("(")[0].strip()
-            self.statusBar().showMessage(f"Ready · FFmpeg found · {short}")
+            extra = ""
+            try:
+                from app.publish.youtube import connected_channel, format_channel, is_connected
+
+                if is_connected(self.config):
+                    extra = f" · YT: {format_channel(connected_channel(self.config))}"
+            except Exception:  # noqa: BLE001
+                extra = ""
+            self.statusBar().showMessage(f"Ready · FFmpeg found · {short}{extra}")
             self.progress.update_progress(status="Ready")
 
     @Slot()
@@ -338,6 +432,21 @@ class MainWindow(QMainWindow):
         if self.worker and self.worker.isRunning():
             return
         opts = self.settings.values()
+        if opts.get("youtube_upload"):
+            from app.publish.youtube import client_secret_path, connected_channel, format_channel, is_connected
+
+            if not is_connected(self.config):
+                studio_warn(
+                    self,
+                    "YouTube not connected",
+                    "Upload to YouTube is on, but this app is not connected to a channel yet.\n\n"
+                    "Use YouTube → Connect / switch channel…\n"
+                    "On Google's screen pick the Brand Account for THAT channel, not only your Gmail.\n"
+                    f"OAuth client file should be:\n{client_secret_path(self.config)}",
+                )
+                return
+            dest = format_channel(connected_channel(self.config))
+            self.statusBar().showMessage(f"Generating… then upload to {dest}")
         self._batch_started = time.perf_counter()
         self._video_index = 0
         self._video_total = None if opts["unlimited"] else opts["count"]
@@ -347,7 +456,13 @@ class MainWindow(QMainWindow):
         self.progress.update_progress(status=f"Starting… ({count_txt})")
         self.preview.clear()
         self._set_running(True)
-        self.statusBar().showMessage("Generating…")
+        if opts.get("youtube_upload"):
+            from app.publish.youtube import connected_channel, format_channel
+
+            dest = format_channel(connected_channel(self.config))
+            self.statusBar().showMessage(f"Generating… then upload to {dest}")
+        else:
+            self.statusBar().showMessage("Generating…")
 
         self.worker = GenerateWorker(self.factory, opts)
         self.worker.progress.connect(self.on_progress, Qt.ConnectionType.QueuedConnection)
@@ -390,7 +505,7 @@ class MainWindow(QMainWindow):
         if phase == "ai":
             self._on_ai_progress(payload)
             return
-        if phase in {"start", "render", "audio", "voice"}:
+        if phase in {"start", "render", "audio", "voice", "youtube"}:
             engine = payload.get("engine", "?")
             style = payload.get("style", "?")
             seed = payload.get("seed", "?")
@@ -404,6 +519,7 @@ class MainWindow(QMainWindow):
                 "voice": str(payload.get("message") or "Timing kids voice…"),
                 "audio": "Creating soundtrack…",
                 "render": f"Rendering frames ({frame}/{total})",
+                "youtube": str(payload.get("message") or "Uploading to YouTube…"),
             }.get(str(phase), str(phase))
             self.progress.update_progress(
                 percent=pct,
@@ -482,33 +598,60 @@ class MainWindow(QMainWindow):
                 summary = last_spec.params.get("ai_summary")
                 if summary:
                     self.progress.set_ai_log(str(summary))
-        self.progress.update_progress(
-            percent=100 if ok else self.progress.bar.value(),
-            status=f"Finished — {ok} of {len(results)} video(s) saved{ai_note}",
-        )
-        self.statusBar().showMessage(f"Done · {ok}/{len(results)} succeeded{ai_note}")
         if not results:
             return
         last = results[-1]
+        yt_ok = [getattr(r, "youtube_url", None) for r in results if getattr(r, "youtube_url", None)]
+        yt_err = [getattr(r, "youtube_error", None) for r in results if getattr(r, "youtube_error", None)]
+        yt_note = ""
+        if yt_ok:
+            yt_note = f" · {len(yt_ok)} uploaded to YouTube"
+        elif yt_err:
+            yt_note = " · YouTube upload failed"
+        self.progress.update_progress(
+            percent=100 if ok else self.progress.bar.value(),
+            status=f"Finished — {ok} of {len(results)} video(s) saved{ai_note}{yt_note}",
+        )
+        self.statusBar().showMessage(f"Done · {ok}/{len(results)} succeeded{ai_note}{yt_note}")
         if last.success and last.output_path:
             self._last_output = Path(last.output_path)
-            box = QMessageBox(self)
-            box.setWindowTitle("Video ready")
-            box.setIcon(QMessageBox.Icon.Information)
-            box.setText(f"Created {ok} video(s).")
-            box.setInformativeText(f"Saved to:\n{last.output_path}")
-            open_btn = box.addButton("Open video", QMessageBox.ButtonRole.AcceptRole)
-            folder_btn = box.addButton("Open folder", QMessageBox.ButtonRole.ActionRole)
-            box.addButton("Close", QMessageBox.ButtonRole.RejectRole)
-            box.exec()
-            clicked = box.clickedButton()
-            if clicked is open_btn:
+            spec = last.spec
+            engine = engine_label(str(last.engine or (spec.engine if spec else "?")))
+            style = style_label(str(last.style or (spec.style if spec else "?")))
+            seed = last.seed if last.seed is not None else (spec.seed if spec else "?")
+            channel_label = ""
+            try:
+                from app.publish.youtube import connected_channel, format_channel, is_connected
+
+                if is_connected(self.config):
+                    channel_label = format_channel(connected_channel(self.config))
+            except Exception:  # noqa: BLE001
+                channel_label = ""
+            dlg = ResultDialog(
+                self,
+                ok_count=ok,
+                total=len(results),
+                engine=engine,
+                style=style,
+                seed=seed,
+                output_path=Path(last.output_path),
+                thumbnail_path=Path(last.thumbnail_path) if last.thumbnail_path else None,
+                youtube_url=getattr(last, "youtube_url", None),
+                youtube_error=str(yt_err[0]) if yt_err else None,
+                youtube_urls=[str(u) for u in yt_ok],
+                channel_label=channel_label,
+            )
+            dlg.exec()
+            clicked = dlg.clicked
+            if clicked == "open_video":
                 HistoryDialog._open_path(Path(last.output_path))
-            elif clicked is folder_btn:
+            elif clicked == "open_folder":
                 HistoryDialog._open_path(Path(last.output_path).parent)
+            elif clicked == "open_youtube" and last.youtube_url:
+                HistoryDialog._open_path(last.youtube_url)
         elif any(not r.success for r in results):
             errs = [r.error for r in results if r.error][:3]
-            QMessageBox.warning(
+            studio_warn(
                 self,
                 "Some videos failed",
                 f"Succeeded: {ok}/{len(results)}\n\n" + "\n".join(str(e) for e in errs),
@@ -520,7 +663,94 @@ class MainWindow(QMainWindow):
         self._set_running(False)
         self.progress.update_progress(status="Something went wrong")
         self.statusBar().showMessage("Failed")
-        QMessageBox.critical(self, "Generation failed", message)
+        studio_warn(self, "Generation failed", message)
+
+    def _refresh_youtube_channel_label(self) -> None:
+        from app.publish.youtube import connected_channel, format_channel, is_connected
+
+        if not is_connected(self.config):
+            self.settings.set_youtube_channel("not connected")
+            return
+        info = connected_channel(self.config)
+        self.settings.set_youtube_channel(format_channel(info) if info else "connected (name unknown — use YouTube menu)")
+
+    @Slot()
+    def connect_youtube(self) -> None:
+        from app.gui.dialogs import StudioDialog
+        from app.publish.youtube import YouTubePublishError, connect_youtube, format_channel
+
+        if self.worker and self.worker.isRunning():
+            studio_warn(self, "Busy", "Stop the current batch before connecting YouTube.")
+            return
+        hint = StudioDialog(
+            self,
+            title="Connect a YouTube channel",
+            body=(
+                "Google will open a browser. If you have many channels, do not stop at your Gmail — "
+                "choose the Brand Account whose name matches the channel you want.\n\n"
+                "This app uploads to that one channel until you switch."
+            ),
+            buttons=[("Cancel", "cancel"), ("Connect in browser", "connect")],
+            window_title="YouTube",
+        )
+        if hint.exec() != QDialog.DialogCode.Accepted or hint.clicked != "connect":
+            return
+        try:
+            info = connect_youtube(self.config, force=True)
+        except YouTubePublishError as exc:
+            studio_warn(self, "YouTube connect", str(exc))
+            return
+        except Exception as exc:  # noqa: BLE001
+            studio_warn(self, "YouTube connect failed", str(exc))
+            return
+        label = format_channel(info)
+        self._refresh_youtube_channel_label()
+        studio_info(
+            self,
+            "Uploads go here",
+            f"{label}\n\n"
+            f"Channel ID: {info.get('id') or '?'}\n"
+            f"{info.get('url') or ''}\n\n"
+            "Wrong one? YouTube → Connect / switch channel… and pick a different Brand Account.",
+        )
+        self.statusBar().showMessage(f"YouTube uploads → {label}")
+
+    @Slot()
+    def show_youtube_channel(self) -> None:
+        from app.publish.youtube import connected_channel, format_channel, is_connected
+
+        if not is_connected(self.config):
+            studio_info(
+                self,
+                "No channel yet",
+                "Nothing is connected. Use YouTube → Connect / switch channel…",
+            )
+            return
+        info = connected_channel(self.config) or {}
+        studio_info(
+            self,
+            "Uploads go here",
+            f"{format_channel(info)}\n\n"
+            f"Channel ID: {info.get('id') or '?'}\n"
+            f"{info.get('url') or ''}\n\n"
+            "Wrong channel? YouTube → Connect / switch channel… and pick the Brand Account you want.",
+        )
+
+    @Slot()
+    def disconnect_youtube(self) -> None:
+        from app.publish.youtube import disconnect_youtube
+
+        disconnect_youtube(self.config)
+        self._refresh_youtube_channel_label()
+        self.statusBar().showMessage("YouTube disconnected")
+        studio_info(self, "YouTube", "Disconnected. Connect again to pick a channel.")
+
+    @Slot()
+    def _open_youtube_studio(self) -> None:
+        from app.publish.youtube import connected_channel
+
+        info = connected_channel(self.config) or {}
+        HistoryDialog._open_path(info.get("studio") or info.get("url") or "https://studio.youtube.com/")
 
     @Slot()
     def open_output(self) -> None:
@@ -534,10 +764,62 @@ class MainWindow(QMainWindow):
         dlg.regenerate.connect(self._regen_seed)
         dlg.exec()
 
+    @Slot()
+    def open_prompt_window(self) -> None:
+        if self.worker and self.worker.isRunning():
+            studio_warn(self, "Busy", "Stop the current batch before prompting a new video.")
+            return
+        from app.gui.prompt_window import PromptWindow
+
+        dlg = PromptWindow(self.config, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted or not dlg.payload:
+            return
+        self._start_prompt_generate(dlg.payload)
+
+    def _start_prompt_generate(self, payload: dict[str, Any]) -> None:
+        opts = self.settings.values()
+        opts["count"] = 1
+        opts["unlimited"] = False
+        opts["seed"] = None
+        opts["engine"] = payload.get("engine")
+        opts["style"] = None
+        opts["user_prompt"] = payload.get("user_prompt")
+        opts["prompt_mode"] = payload.get("prompt_mode") or "offline"
+        opts["prompt_quality"] = payload.get("prompt_quality") or "1080"
+        opts["duration"] = payload.get("duration")
+        opts["random_duration"] = payload.get("duration") is None
+        opts["random_resolution"] = False
+        opts["random_fps"] = False
+        opts["fps"] = 30
+        opts["audio_enabled"] = True
+        opts["thumbnail"] = True
+        opts["ai_enabled"] = payload.get("prompt_mode") == "ai"
+        quality = str(payload.get("prompt_quality") or "1080")
+        prompt_text = str(payload.get("user_prompt") or "")
+        from app.ai.prompt_brief import detect_resolution
+
+        opts["resolution"] = detect_resolution(prompt_text, quality)
+
+        self._batch_started = time.perf_counter()
+        self._video_index = 0
+        self._video_total = 1
+        self.progress.reset()
+        self.progress.set_ai_visible(True)
+        self.progress.update_progress(status="Reading your prompt…")
+        self.preview.clear()
+        self._set_running(True)
+        self.statusBar().showMessage("Generating from prompt…")
+
+        self.worker = GenerateWorker(self.factory, opts)
+        self.worker.progress.connect(self.on_progress, Qt.ConnectionType.QueuedConnection)
+        self.worker.finished_batch.connect(self.on_finished, Qt.ConnectionType.QueuedConnection)
+        self.worker.failed.connect(self.on_failed, Qt.ConnectionType.QueuedConnection)
+        self.worker.start()
+
     @Slot(int)
     def _regen_seed(self, seed: int) -> None:
         if self.worker and self.worker.isRunning():
-            QMessageBox.warning(self, "Busy", "Stop the current batch before regenerating.")
+            studio_warn(self, "Busy", "Stop the current batch before regenerating.")
             return
         opts = self.settings.values()
         opts["seed"] = seed
@@ -557,26 +839,7 @@ class MainWindow(QMainWindow):
     def clean_temp(self) -> None:
         n = clean_all_temp(self.config)
         self.statusBar().showMessage(f"Cleaned {n} temporary item(s)")
-        QMessageBox.information(self, "Temp files cleaned", f"Removed {n} temporary item(s).")
+        studio_info(self, "Temp files cleaned", f"Removed {n} temporary item(s).")
 
     def _about(self) -> None:
-        box = QMessageBox(self)
-        box.setWindowTitle("About")
-        apply_app_icon(box)
-        box.setIconPixmap(
-            QPixmap(str(app_logo_path())).scaled(
-                96,
-                96,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        )
-        box.setText("Genesis Artvision Engine")
-        box.setInformativeText(
-            "by ANSNEW TECH\n\n"
-            "Offline procedural art video generator.\n"
-            "Optional OpenRouter advisor suggests creative direction only.\n"
-            "Frames, audio, and FFmpeg stay local.\n\n"
-            "Pick an engine, then Generate."
-        )
-        box.exec()
+        about_dialog(self)
