@@ -125,6 +125,9 @@ def test_responsive_brief_layouts_are_valid_and_non_overlapping():
             assert layout.visual.x1 <= layout.card.x0
         else:
             assert layout.visual.y1 <= layout.card.y0
+        for variant in ("split_left", "diagram_focus", "card_emphasis", "full_bleed"):
+            alt = brief_layout(width, height, ticker=True, variant=variant)
+            assert alt.visual.w >= 1 and alt.card.w >= 1
 
 
 def test_multiline_type_and_stateless_transitions():

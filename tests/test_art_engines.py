@@ -150,6 +150,21 @@ def test_kids_storybook_uses_storybook_edit():
     assert spec.params["style"] == "pulse"
 
 
+def test_create_project_assigns_visual_variants():
+    cfg = load_config()
+    rnd = Randomizer(cfg)
+    spec = rnd.create_project(seed=19, engine="how_it_works", resolution="160x90", fps=10, duration=1)
+    assert spec.params["background_variant"] in {
+        "whiteboard",
+        "chalkboard",
+        "poster_wall",
+        "worksheet",
+        "lab_bench",
+        "projection",
+    }
+    assert spec.params["layout_variant"] in {"split_right", "split_left", "stacked", "diagram_focus"}
+
+
 def test_remaining_styles_keep_distinct_grades():
     cfg = load_config()
     rnd = Randomizer(cfg)

@@ -87,9 +87,7 @@ data/youtube/*
 *.webp
 *.gif
 
-# Keep shipped icons only (word cards and scenes are generated on run)
+# Keep shipped icons only. Word cards and scenes are generated on run.
 !assets/app_icon.jpg
 !assets/app_icon.ico
-!assets/app_icon.png
-!assets/music/**
 !assets/education/words/.gitkeep

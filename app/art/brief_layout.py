@@ -61,14 +61,76 @@ class BriefLayout:
     small_font: int
 
 
+BRIEF_LAYOUT_VARIANTS = {
+    "how_it_works": ("split_right", "split_left", "stacked", "diagram_focus"),
+    "trend_brief": ("broadcast", "card_emphasis", "full_bleed"),
+}
+
+
+def brief_layout_variants(engine: str) -> tuple[str, ...]:
+    """Return the supported variants for a brief engine."""
+    key = str(engine or "").strip().lower().replace("-", "_")
+    return BRIEF_LAYOUT_VARIANTS.get(key, ())
+
+
+def _split_horizontal(
+    box: BriefBox,
+    gap: int,
+    first_fraction: float,
+) -> tuple[BriefBox, BriefBox]:
+    """Split ``box`` left-to-right with a real, bounded gutter."""
+    gutter = min(max(0, int(gap)), max(0, box.w - 2))
+    usable = max(2, box.w - gutter)
+    first_w = max(1, min(usable - 1, int(usable * first_fraction)))
+    cut = box.x0 + first_w
+    return (
+        BriefBox(box.x0, box.y0, cut, box.y1),
+        BriefBox(cut + gutter, box.y0, box.x1, box.y1),
+    )
+
+
+def _split_vertical(
+    box: BriefBox,
+    gap: int,
+    first_fraction: float,
+) -> tuple[BriefBox, BriefBox]:
+    """Split ``box`` top-to-bottom with a real, bounded gutter."""
+    gutter = min(max(0, int(gap)), max(0, box.h - 2))
+    usable = max(2, box.h - gutter)
+    first_h = max(1, min(usable - 1, int(usable * first_fraction)))
+    cut = box.y0 + first_h
+    return (
+        BriefBox(box.x0, box.y0, box.x1, cut),
+        BriefBox(box.x0, cut + gutter, box.x1, box.y1),
+    )
+
+
 def brief_layout(
     width: int,
     height: int,
     *,
     ticker: bool = False,
     caption_band: bool = False,
+    engine: str | None = None,
+    variant: str | None = None,
 ) -> BriefLayout:
-    """Build non-overlapping broadcast-safe regions for every aspect ratio."""
+    """Build non-overlapping broadcast-safe regions for every aspect ratio.
+
+    Omitting ``engine`` and ``variant`` preserves the original broadcast
+    layout exactly. Unknown or cross-engine variants safely fall back to the
+    corresponding engine default.
+    """
+    engine_key = str(engine or "").strip().lower().replace("-", "_")
+    variant_key = str(variant or "").strip().lower().replace("-", "_")
+    if not engine_key and variant_key:
+        for candidate, names in BRIEF_LAYOUT_VARIANTS.items():
+            if variant_key in names:
+                engine_key = candidate
+                break
+    names = BRIEF_LAYOUT_VARIANTS.get(engine_key, ())
+    if variant_key not in names:
+        variant_key = names[0] if names else ""
+
     w, h = max(96, int(width)), max(96, int(height))
     short = min(w, h)
     margin = max(3, int(short * 0.055))
@@ -100,6 +162,32 @@ def brief_layout(
         split = content.y0 + int(content.h * 0.43)
         visual = BriefBox(content.x0, content.y0, content.x1, split - gap // 2)
         card = BriefBox(content.x0, split + gap // 2, content.x1, content.y1)
+
+    # The defaults are deliberately left untouched above: explicit
+    # ``split_right``/``broadcast`` and legacy calls are pixel-identical.
+    if variant_key == "split_left":
+        if orientation == "landscape":
+            card, visual = _split_horizontal(content, gap, 0.46)
+        else:
+            card, visual = _split_vertical(content, gap, 0.46)
+    elif variant_key == "stacked":
+        visual, card = _split_vertical(content, gap, 0.54)
+    elif variant_key == "diagram_focus":
+        if orientation == "landscape":
+            visual, card = _split_horizontal(content, gap, 0.70)
+        else:
+            visual, card = _split_vertical(content, gap, 0.64)
+    elif variant_key == "card_emphasis":
+        if orientation == "landscape":
+            visual, card = _split_horizontal(content, gap, 0.36)
+        else:
+            visual, card = _split_vertical(content, gap, 0.34)
+    elif variant_key == "full_bleed":
+        if orientation == "landscape":
+            visual, card = _split_horizontal(content, gap, 0.78)
+        else:
+            visual, card = _split_vertical(content, gap, 0.76)
+
     footer = BriefBox(safe.x0, content.y1 + gap, safe.x1, safe.y1)
     return BriefLayout(
         w,

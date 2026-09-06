@@ -5,6 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+KIDS_LAYOUT_VARIANTS = ("classic_split", "picture_first", "hero_center")
+
+
+def kids_layout_variants() -> tuple[str, ...]:
+    """Return the supported kids layout variants."""
+    return KIDS_LAYOUT_VARIANTS
+
+
 @dataclass(frozen=True)
 class Box:
     x0: int
@@ -48,6 +56,18 @@ class Box:
         )
 
 
+def _compact_horizontal(box: Box, gap: int) -> tuple[Box, Box]:
+    """Return two positive boxes inside a very shallow content band."""
+    gutter = min(max(0, int(gap)), max(0, box.w - 2))
+    usable = max(2, box.w - gutter)
+    first_w = max(1, min(usable - 1, int(usable * 0.70)))
+    cut = box.x0 + first_w
+    return (
+        Box(box.x0, box.y0, cut, box.y1),
+        Box(cut + gutter, box.y0, box.x1, box.y1),
+    )
+
+
 @dataclass(frozen=True)
 class KidsLayout:
     width: int
@@ -84,12 +104,24 @@ class KidsLayout:
         return self.caption.cx, self.caption.y0 + max(18, int(self.caption.h * 0.22))
 
 
-def kids_layout(width: int, height: int) -> KidsLayout:
+def kids_layout(
+    width: int,
+    height: int,
+    *,
+    variant: str = "classic_split",
+) -> KidsLayout:
     """Build a 3-band kids frame: title, stage+picture, caption.
 
     Landscape / square: letter card on the left, picture on the right.
     Portrait: letter card on top, picture under it.
+
+    ``classic_split`` is the original layout.  The other variants only
+    rearrange the stage and picture inside the same safe content region.
     """
+    key = str(variant or "classic_split").strip().lower().replace("-", "_")
+    if key not in KIDS_LAYOUT_VARIANTS:
+        key = "classic_split"
+
     w, h = max(64, int(width)), max(64, int(height))
     short = min(w, h)
     margin = max(6, int(short * 0.03))
@@ -137,6 +169,36 @@ def kids_layout(width: int, height: int) -> KidsLayout:
         stage = Box(stage.x0, stage.y0, stage.x0 + 8, stage.y1)
     if picture.x1 < picture.x0:
         picture = Box(picture.x0, picture.y0, picture.x0 + 8, picture.y1)
+
+    if key != "classic_split" and (stage.y1 > caption.y0 - gap or picture.y1 > caption.y0 - gap):
+        # Legacy sizing intentionally remains untouched. Variants use this
+        # compact fallback when the requested canvas leaves only a few pixels
+        # between the fixed title and caption bands.
+        compact = Box(margin, content_top, w - margin, max(content_top + 1, caption.y0 - gap))
+        usable = max(2, compact.w - gap)
+        stage_w = max(1, min(usable - 1, int(usable * 0.64)))
+        stage = Box(compact.x0, compact.y0, compact.x0 + stage_w, compact.y1)
+        picture = Box(stage.x1 + gap, compact.y0, compact.x1, compact.y1)
+
+    if key == "picture_first":
+        stage, picture = picture, stage
+    elif key == "hero_center":
+        content = Box(
+            min(stage.x0, picture.x0),
+            min(stage.y0, picture.y0),
+            max(stage.x1, picture.x1),
+            max(stage.y1, picture.y1),
+        )
+        # A centered hero reads consistently in every aspect ratio.  Keeping
+        # the picture in a separate lower band also leaves the hero clear for
+        # letter animation and hit testing.
+        if content.h >= gap + 2:
+            picture_h = max(1, min(content.h - gap - 1, int(content.h * 0.27)))
+            split = content.y1 - picture_h
+            stage = Box(content.x0, content.y0, content.x1, split - gap)
+            picture = Box(content.x0, split, content.x1, content.y1)
+        else:
+            stage, picture = _compact_horizontal(content, gap)
 
     hero_font = max(22, int(min(stage.w, stage.h) * 0.50))
     letter_font = max(16, int(min(stage.w, stage.h) * 0.20))

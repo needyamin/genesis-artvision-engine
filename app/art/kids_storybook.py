@@ -10,7 +10,10 @@ from app.art.brief_layout import composite_segment_layers, paint_text_block
 from app.art.editorial import segment_state
 from app.art.education_ui import draw_title_banner, load_font, paint_text, paste_picture, segment_at
 from app.art.kids_layout import kids_layout
+from app.art.procedural_backgrounds import get_chrome_theme, paint_background
 from app.art.storybook_content import build_storybook_lesson
+from app.art.styles import style_chrome
+from app.art.visual_variants import resolve_visual_variants
 from app.art.word_images import ensure_word_image
 
 
@@ -29,10 +32,28 @@ class KidsStorybookEngine(ArtEngine):
             self.lesson = build_storybook_lesson(self.seed, duration, params=self.params)
         self.segments = list(self.lesson.get("segments") or [])
         self.params["education_lesson"] = self.lesson
-        self.layout = kids_layout(self.width, self.height)
-        self.font_lg = load_font(max(22, int(self.layout.hero_font * 0.42)))
-        self.font_md = load_font(self.layout.md_font)
-        self.font_sm = load_font(self.layout.sm_font)
+        self.variant = resolve_visual_variants(self.name, self.params)
+        self.params.update(self.variant.to_params())
+        self.layout = kids_layout(
+            self.width,
+            self.height,
+            variant=self.variant.layout_variant,
+        )
+        theme = get_chrome_theme(self.name, self.variant.background_variant, self.palette)
+        self.chrome = style_chrome(
+            str(self.params.get("style") or "storybook"),
+            dark=theme.dark,
+            text=theme.text,
+            muted=theme.muted_text,
+            accent=theme.accent,
+            card=theme.card,
+            border=theme.border,
+            short_side=min(self.width, self.height),
+        )
+        type_scale = float(self.chrome["type_scale"])
+        self.font_lg = load_font(max(22, int(self.layout.hero_font * 0.42 * type_scale)))
+        self.font_md = load_font(max(11, int(self.layout.md_font * type_scale)))
+        self.font_sm = load_font(max(10, int(self.layout.sm_font * type_scale)))
         if bool(self.params.get("show_word_images", True)):
             for seg in self.segments:
                 w = str(seg.get("word") or "")
@@ -74,6 +95,7 @@ class KidsStorybookEngine(ArtEngine):
         img = self._paper_page()
         draw = ImageDraw.Draw(img)
         title = str(self.lesson.get("title") or "Storybook")
+        chrome = self.chrome
         draw_title_banner(
             draw,
             self.width,
@@ -82,6 +104,11 @@ class KidsStorybookEngine(ArtEngine):
             self.font_sm,
             layout=self.layout,
             count_label=f"{page}/{total}",
+            fill=chrome["card_fill"][:3],
+            outline=chrome["border"][:3],
+            text_fill=chrome["text"],
+            counter_fill=chrome["muted"],
+            radius=int(chrome["card_radius"]),
         )
         headline = str(seg.get("headline") or seg.get("overlay_text") or "")
         body = str(seg.get("caption") or seg.get("body") or "")
@@ -91,7 +118,7 @@ class KidsStorybookEngine(ArtEngine):
             (ly.stage.cx, ly.stage.y0 + int(ly.stage.h * 0.18)),
             headline,
             self.font_lg,
-            (70, 45, 30),
+            chrome["text"],
             anchor="mm",
             max_width=ly.stage.w - 24,
         )
@@ -100,13 +127,19 @@ class KidsStorybookEngine(ArtEngine):
             paste_picture(img, seg, ly, bounce=bounce)
         if body:
             cap = ly.caption
-            draw.rounded_rectangle(cap.xy, radius=14, fill=(255, 248, 236), outline=(180, 140, 100), width=2)
+            draw.rounded_rectangle(
+                cap.xy,
+                radius=max(8, int(chrome["card_radius"]) - 2),
+                fill=chrome["card_fill"][:3],
+                outline=chrome["border"][:3],
+                width=int(chrome["stroke"]),
+            )
             paint_text_block(
                 draw,
                 (cap.x0 + max(10, ly.gap * 2), cap.y0 + max(8, ly.gap)),
                 body,
                 self.font_md,
-                (60, 50, 40),
+                chrome["muted"],
                 max_width=cap.w - max(20, ly.gap * 4),
                 max_height=cap.h - max(16, ly.gap * 2),
                 spacing=max(3, ly.gap // 2),
@@ -114,6 +147,18 @@ class KidsStorybookEngine(ArtEngine):
         return img
 
     def _paper_page(self) -> Image.Image:
+        if self.variant.background_variant == "desk_stack":
+            return self._classic_desk_page()
+        return paint_background(
+            self.name,
+            self.width,
+            self.height,
+            self.seed,
+            self.palette,
+            variant=self.variant.background_variant,
+        ).convert("RGBA")
+
+    def _classic_desk_page(self) -> Image.Image:
         w, h = self.width, self.height
         cream = np.array((242, 228, 204), dtype=np.float32)
         if self.palette is not None and self.palette.colors:
@@ -127,7 +172,6 @@ class KidsStorybookEngine(ArtEngine):
         grain = rng.random((h, w, 1)).astype(np.float32) * 8.0 - 4.0
         page = np.clip(page + grain, 0, 255)
         paper = Image.fromarray(page.astype(np.uint8)).convert("RGBA")
-        # A desk, ambient occlusion, and offset sheets make the page read as layered.
         desk = Image.new("RGBA", (w, h), (116, 82, 58, 255))
         draw = ImageDraw.Draw(desk, "RGBA")
         margin = int(min(w, h) * 0.04)

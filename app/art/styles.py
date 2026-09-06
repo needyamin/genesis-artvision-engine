@@ -95,6 +95,52 @@ STYLE_EDIT: dict[str, dict[str, Any]] = {
 }
 
 
+def style_chrome(
+    style: str,
+    *,
+    dark: bool,
+    text: tuple[int, int, int],
+    muted: tuple[int, int, int],
+    accent: tuple[int, int, int],
+    card: tuple[int, int, int, int],
+    border: tuple[int, int, int, int],
+    short_side: int = 720,
+) -> dict[str, Any]:
+    """Turn a style name into card, type, and motion treatment for any engine."""
+    key = str(style or "storybook").strip().lower()
+    radius_frac = {"pulse": 0.016, "classroom": 0.018, "storybook": 0.026}.get(key, 0.022)
+    radius = max(6, int(short_side * radius_frac))
+    if key == "pulse":
+        card_fill = (12, 16, 28, 220) if dark else (18, 22, 34, 228)
+        ink = (250, 252, 255) if dark else (22, 24, 32)
+        soft = (196, 206, 220) if dark else (70, 76, 90)
+        stroke = 2
+        density = 1.15
+    elif key == "classroom":
+        card_fill = (20, 32, 28, 220) if dark else (255, 255, 255, 236)
+        ink = (236, 244, 238) if dark else (36, 48, 58)
+        soft = (186, 204, 194) if dark else (70, 80, 90)
+        stroke = 2
+        density = 0.85
+    else:
+        card_fill = card if dark else (255, 248, 236, 240)
+        ink = text if dark else (60, 42, 30)
+        soft = muted if dark else (90, 70, 55)
+        stroke = 2
+        density = 0.75
+    return {
+        "card_radius": radius,
+        "card_fill": card_fill,
+        "text": ink,
+        "muted": soft,
+        "accent": accent,
+        "border": border,
+        "stroke": stroke,
+        "density": density,
+        "type_scale": 1.08 if key == "pulse" else 0.96 if key == "classroom" else 1.0,
+    }
+
+
 def sample_edit_look(rng: np.random.Generator, style: str) -> dict[str, Any]:
     """Sample a full editorial look for this style."""
     profile = STYLE_EDIT.get(style, STYLE_EDIT["storybook"])

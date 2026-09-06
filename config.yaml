@@ -76,6 +76,48 @@ styles:
   - classroom
   - pulse
 
+# Seeded choices are persisted in every new project for exact replay.
+# Set a weight to 0 to disable that choice without changing seed behavior.
+visual_variation:
+  enabled: true
+  version: 1
+  backgrounds:
+    kids_storybook:
+      desk_stack: 1.0
+      cozy_corner: 1.0
+      window_day: 1.0
+      craft_mat: 1.0
+      night_lamp: 1.0
+      open_spread: 1.0
+    how_it_works:
+      whiteboard: 1.0
+      chalkboard: 1.0
+      poster_wall: 1.0
+      worksheet: 1.0
+      lab_bench: 1.0
+      projection: 1.0
+    trend_brief:
+      neon_ridge: 1.0
+      grid_pulse: 1.0
+      aurora_bands: 1.0
+      static_fizz: 1.0
+      mesh_glow: 1.0
+      radar_sweep: 1.0
+  layouts:
+    kids_storybook:
+      classic_split: 1.0
+      picture_first: 1.0
+      hero_center: 1.0
+    how_it_works:
+      split_right: 1.0
+      split_left: 1.0
+      stacked: 1.0
+      diagram_focus: 1.0
+    trend_brief:
+      broadcast: 1.0
+      card_emphasis: 1.0
+      full_bleed: 1.0
+
 # Primary export targets: Full HD + 4K (and common variants)
 resolutions:
   - "1920x1080"   # Full HD landscape (default)

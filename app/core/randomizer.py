@@ -11,6 +11,7 @@ import numpy as np
 from app.art.edit_brain import rule_of_thirds_focus
 from app.art.palette import Palette, generate_palette
 from app.art.styles import list_styles, preferred_engines, sample_edit_look, sample_style_multiplier
+from app.art.visual_variants import select_visual_variants
 from app.utils.validation import parse_resolution
 
 # Engine owns the concept. Default style is the matching look for that concept.
@@ -135,6 +136,8 @@ class Randomizer:
         edit_preset: str | None = None,
         caption_mode: str | None = None,
         edit_intensity: float | None = None,
+        background_variant: str | None = None,
+        layout_variant: str | None = None,
     ) -> ProjectSpec:
         seed = int(seed) if seed is not None else self.new_seed()
         rng = np.random.default_rng(seed)
@@ -192,6 +195,20 @@ class Randomizer:
         params["_duration"] = duration_val
         params["style"] = style_name
         params.update(_edit_look(rng, engine_name, style_name, seed))
+        visual_variants = select_visual_variants(
+            engine_name,
+            seed,
+            self.config.get("visual_variation") or {},
+            background_variant=background_variant,
+            layout_variant=layout_variant,
+        )
+        params.update(visual_variants.to_params())
+        # Keep the established How It Works alias coherent for old callers.
+        if (
+            engine_name == "how_it_works"
+            and visual_variants.background_variant in {"whiteboard", "chalkboard"}
+        ):
+            params["board"] = visual_variants.background_variant
         editing = self.config.get("editing") or {}
         preset_name = str(edit_preset or editing.get("default_preset") or "standard")
         preset = dict((editing.get("presets") or {}).get(preset_name) or {})

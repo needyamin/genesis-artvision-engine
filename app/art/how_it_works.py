@@ -12,6 +12,9 @@ from app.art.brief_layout import brief_layout, composite_segment_layers, paint_t
 from app.art.editorial import segment_state
 from app.art.fonts import load_font, paint_text
 from app.art.how_it_works_content import build_how_it_works_topic
+from app.art.procedural_backgrounds import get_chrome_theme, paint_background
+from app.art.styles import style_chrome
+from app.art.visual_variants import resolve_visual_variants
 
 
 def _rgb(c: tuple[int, int, int], a: int = 255) -> tuple[int, int, int, int]:
@@ -37,12 +40,33 @@ class HowItWorksEngine(ArtEngine):
             )
         self.topic = topic
         self.params["topic_data"] = topic
-        self.board = str(self.params.get("board", "whiteboard"))
+        self.variant = resolve_visual_variants(self.name, self.params)
+        self.params.update(self.variant.to_params())
+        if self.variant.background_variant in {"whiteboard", "chalkboard"}:
+            self.params["board"] = self.variant.background_variant
+        self.board = str(self.params.get("board") or self.variant.background_variant)
         caption_band = str(self.params.get("caption_mode") or "").lower() in {"burn", "both"}
-        self.layout = brief_layout(self.width, self.height, caption_band=caption_band)
-        self.c_ink = (40, 55, 70)
-        self.c_accent = (30, 110, 170)
-        self.c_chalk = (245, 248, 252)
+        self.layout = brief_layout(
+            self.width,
+            self.height,
+            caption_band=caption_band,
+            engine=self.name,
+            variant=self.variant.layout_variant,
+        )
+        theme = get_chrome_theme(self.name, self.variant.background_variant, self.palette)
+        self.chrome = style_chrome(
+            str(self.params.get("style") or "classroom"),
+            dark=theme.dark,
+            text=theme.text,
+            muted=theme.muted_text,
+            accent=theme.accent,
+            card=theme.card,
+            border=theme.border,
+            short_side=min(self.width, self.height),
+        )
+        self.c_ink = self.chrome["text"]
+        self.c_accent = self.chrome["accent"]
+        self.c_chalk = self.chrome["muted"]
         if self.palette is not None and len(self.palette.colors) >= 2:
             self.c_accent = tuple(int(c * 255) for c in self.palette.colors[1])[:3]
 
@@ -87,6 +111,18 @@ class HowItWorksEngine(ArtEngine):
         return np.array(img.convert("RGB"), dtype=np.uint8)
 
     def _board(self) -> Image.Image:
+        if self.variant.background_variant in {"whiteboard", "chalkboard"}:
+            return self._classic_board()
+        return paint_background(
+            self.name,
+            self.width,
+            self.height,
+            self.seed,
+            self.palette,
+            variant=self.variant.background_variant,
+        ).convert("RGBA")
+
+    def _classic_board(self) -> Image.Image:
         if self.board == "chalkboard":
             base = np.full((self.height, self.width, 3), (42, 78, 52), dtype=np.uint8)
         else:
@@ -103,7 +139,6 @@ class HowItWorksEngine(ArtEngine):
             draw.line((x, 0, x, self.height), fill=grid_color, width=1)
         for y in range(0, self.height, step):
             draw.line((0, y, self.width, y), fill=grid_color, width=1)
-        # Offset rails create a physical board edge instead of a flat color field.
         rail = max(4, int(min(self.width, self.height) * 0.012))
         draw.rectangle((0, self.height - rail * 2, self.width, self.height), fill=(25, 35, 42, 65))
         draw.line((0, self.height - rail * 2, self.width, self.height - rail * 2), fill=(255, 255, 255, 45), width=2)
@@ -112,7 +147,13 @@ class HowItWorksEngine(ArtEngine):
     def _header(self, draw: ImageDraw.ImageDraw, t: float, idx: int, n: int) -> None:
         box = self.layout.header
         pad = self.layout.pad
-        draw.rounded_rectangle(box.xy, radius=14, fill=(255, 255, 255, 230), outline=_rgb(self.c_accent, 90), width=2)
+        draw.rounded_rectangle(
+            box.xy,
+            radius=int(self.chrome["card_radius"]),
+            fill=self.chrome["card_fill"],
+            outline=_rgb(self.c_accent, 90),
+            width=int(self.chrome["stroke"]),
+        )
         f_sm = load_font(self.layout.small_font)
         f_lg = load_font(self.layout.title_font)
         paint_text(draw, (box.x0 + pad, box.y0 + int(box.h * 0.28)), str(self.topic.get("domain_label") or "HOW IT WORKS"), f_sm, self.c_accent, anchor="lm")
@@ -134,7 +175,13 @@ class HowItWorksEngine(ArtEngine):
             state["eased"],
         )
         x0, y0, x1, y1 = self.layout.card.xy
-        draw.rounded_rectangle((x0, y0, x1, y1), radius=16, fill=(255, 255, 255, 235), outline=_rgb(self.c_accent, 140), width=2)
+        draw.rounded_rectangle(
+            (x0, y0, x1, y1),
+            radius=int(self.chrome["card_radius"]),
+            fill=self.chrome["card_fill"],
+            outline=_rgb(self.c_accent, 140),
+            width=int(self.chrome["stroke"]),
+        )
         f_phase = load_font(self.layout.small_font)
         f_head = load_font(self.layout.headline_font)
         f_body = load_font(self.layout.body_font)
@@ -156,7 +203,7 @@ class HowItWorksEngine(ArtEngine):
             (x0 + pad, body_y),
             str(seg.get("body") or ""),
             f_body,
-            (70, 80, 90),
+            self.chrome["muted"],
             max_width=x1 - x0 - pad * 2,
             max_height=max(24, y1 - body_y - pad * 3),
         )
@@ -173,7 +220,14 @@ class HowItWorksEngine(ArtEngine):
         x0, y0, x1, y1 = box
         cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
         r = int(min(x1 - x0, y1 - y0) * 0.32)
-        draw.rounded_rectangle(box, radius=18, fill=(255, 255, 255, 40), outline=_rgb(self.c_accent, 80), width=1)
+        panel_fill = (255, 255, 255, 40) if not self.chrome["card_fill"][0] < 80 else (8, 12, 16, 70)
+        draw.rounded_rectangle(
+            box,
+            radius=max(8, int(self.chrome["card_radius"]) - 2),
+            fill=panel_fill,
+            outline=_rgb(self.c_accent, 80),
+            width=1,
+        )
         kind = kind.lower()
         if kind == "heart":
             self._heart(draw, cx, cy, r, t)

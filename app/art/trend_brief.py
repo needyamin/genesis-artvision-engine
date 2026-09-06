@@ -12,7 +12,10 @@ from app.art.brief_layout import brief_layout, composite_segment_layers, paint_t
 from app.art.edit_brain import beat_pulse, style_motion
 from app.art.editorial import segment_state
 from app.art.fonts import load_font, paint_text
+from app.art.procedural_backgrounds import get_chrome_theme, paint_background
+from app.art.styles import style_chrome
 from app.art.trend_content import build_trend_topic
+from app.art.visual_variants import resolve_visual_variants
 
 
 def _rgba(c: tuple[int, int, int], a: int = 255) -> tuple[int, int, int, int]:
@@ -38,6 +41,8 @@ class TrendBriefEngine(ArtEngine):
             )
         self.topic = topic
         self.params["topic_data"] = topic
+        self.variant = resolve_visual_variants(self.name, self.params)
+        self.params.update(self.variant.to_params())
         self.energy = float(self.params.get("energy", 0.85))
         self.ticker_speed = float(self.params.get("ticker_speed", 1.0))
         self.motion = style_motion(str(self.params.get("style") or "pulse"))
@@ -47,6 +52,19 @@ class TrendBriefEngine(ArtEngine):
             self.height,
             ticker=True,
             caption_band=caption_band,
+            engine=self.name,
+            variant=self.variant.layout_variant,
+        )
+        theme = get_chrome_theme(self.name, self.variant.background_variant, self.palette)
+        self.chrome = style_chrome(
+            str(self.params.get("style") or "pulse"),
+            dark=theme.dark,
+            text=theme.text,
+            muted=theme.muted_text,
+            accent=theme.accent,
+            card=theme.card,
+            border=theme.border,
+            short_side=min(self.width, self.height),
         )
         self.c_bg = (8, 10, 18)
         self.c_accent = (0, 230, 180)
@@ -95,6 +113,22 @@ class TrendBriefEngine(ArtEngine):
         return np.array(img.convert("RGB"), dtype=np.uint8)
 
     def _backdrop(self, t: float, beat: float = 0.0) -> np.ndarray:
+        if self.variant.background_variant != "neon_ridge":
+            motion_t = t * max(0.35, self.energy * self.motion.speed)
+            image = paint_background(
+                self.name,
+                self.width,
+                self.height,
+                self.seed,
+                self.palette,
+                variant=self.variant.background_variant,
+                t=motion_t,
+                beat=beat * self.motion.pulse,
+            )
+            return np.asarray(image.convert("RGB"), dtype=np.uint8)
+        return self._classic_neon_ridge(t, beat)
+
+    def _classic_neon_ridge(self, t: float, beat: float = 0.0) -> np.ndarray:
         h, w = self.height, self.width
         yy = np.linspace(0, 1, h, dtype=np.float32)[:, None]
         xx = np.linspace(0, 1, w, dtype=np.float32)[None, :]
@@ -170,7 +204,13 @@ class TrendBriefEngine(ArtEngine):
         card = self.layout.card
         x0, y0, x1, y1 = card.xy
         border_alpha = int(150 + 80 * beat)
-        draw.rounded_rectangle((x0, y0, x1, y1), radius=18, fill=(12, 16, 28, 210), outline=_rgba(self.c_accent, border_alpha), width=2)
+        draw.rounded_rectangle(
+            (x0, y0, x1, y1),
+            radius=int(self.chrome["card_radius"]),
+            fill=self.chrome["card_fill"],
+            outline=_rgba(self.c_accent, border_alpha),
+            width=int(self.chrome["stroke"]),
+        )
         f_ph = load_font(self.layout.small_font)
         f_h = load_font(self.layout.headline_font)
         f_b = load_font(self.layout.body_font)
@@ -182,7 +222,7 @@ class TrendBriefEngine(ArtEngine):
             (x0 + pad, head_y),
             str(seg.get("headline") or ""),
             f_h,
-            (250, 252, 255),
+            self.chrome["text"],
             max_width=card.w - pad * 2,
             max_height=max(24, int(card.h * 0.26)),
         )
@@ -192,7 +232,7 @@ class TrendBriefEngine(ArtEngine):
             (x0 + pad, body_y),
             str(seg.get("body") or ""),
             f_b,
-            (200, 210, 220),
+            self.chrome["muted"],
             max_width=card.w - pad * 2,
             max_height=max(24, y1 - body_y - pad * 3),
             spacing=max(3, self.layout.small_font // 4),
@@ -205,9 +245,32 @@ class TrendBriefEngine(ArtEngine):
 
     def _visual_panel(self, draw: ImageDraw.ImageDraw, seg: dict, index: int, beat: float) -> None:
         box = self.layout.visual
-        draw.rounded_rectangle(box.xy, radius=18, fill=(8, 12, 24, 145), outline=_rgba(self.c_hot, 90), width=1)
-        bars = 5
+        draw.rounded_rectangle(
+            box.xy,
+            radius=max(8, int(self.chrome["card_radius"]) - 2),
+            fill=(8, 12, 24, 145),
+            outline=_rgba(self.c_hot, 90),
+            width=1,
+        )
         pad = self.layout.pad
+        kind = self.variant.layout_variant
+        if kind == "full_bleed":
+            self._visual_wave(draw, box, index, beat, pad)
+        elif kind == "card_emphasis":
+            self._visual_tiles(draw, box, index, beat, pad)
+        else:
+            self._visual_bars(draw, box, index, beat, pad)
+        label = str(seg.get("phase") or "SIGNAL").upper()
+        paint_text(draw, (box.x1 - pad, box.y0 + pad), label, load_font(self.layout.small_font), (225, 235, 245), anchor="ra", max_width=box.w // 2)
+        metrics = list(self.topic.get("metrics") or [])
+        if metrics:
+            mx = box.x1 - pad
+            for i, m in enumerate(metrics[:2]):
+                label = f"{m.get('label', '')}  {m.get('val', '')} {m.get('unit', '')}"
+                paint_text(draw, (mx, box.y1 - pad - i * (self.layout.small_font + 6)), label, load_font(self.layout.small_font), (180, 190, 200), anchor="rb", max_width=box.w // 2)
+
+    def _visual_bars(self, draw: ImageDraw.ImageDraw, box, index: int, beat: float, pad: int) -> None:
+        bars = 5
         baseline = box.y1 - pad
         usable_h = max(10, box.h - pad * 2)
         bar_w = max(5, (box.w - pad * 2) // (bars * 2))
@@ -217,11 +280,31 @@ class TrendBriefEngine(ArtEngine):
             bx = box.x0 + pad + i * bar_w * 2
             top = baseline - int(usable_h * value)
             draw.rounded_rectangle((bx, top, bx + bar_w, baseline), radius=max(2, bar_w // 3), fill=_rgba(self.c_accent, 110 + i * 20))
-        label = str(seg.get("phase") or "SIGNAL").upper()
-        paint_text(draw, (box.x1 - pad, box.y0 + pad), label, load_font(self.layout.small_font), (225, 235, 245), anchor="ra", max_width=box.w // 2)
-        metrics = list(self.topic.get("metrics") or [])
-        if metrics:
-            mx = box.x1 - pad
-            for i, m in enumerate(metrics[:2]):
-                label = f"{m.get('label', '')}  {m.get('val', '')} {m.get('unit', '')}"
-                paint_text(draw, (mx, box.y1 - pad - i * (self.layout.small_font + 6)), label, load_font(self.layout.small_font), (180, 190, 200), anchor="rb", max_width=box.w // 2)
+
+    def _visual_tiles(self, draw: ImageDraw.ImageDraw, box, index: int, beat: float, pad: int) -> None:
+        cols, rows = 2, 2
+        gap = max(4, pad // 2)
+        cell_w = max(8, (box.w - pad * 2 - gap) // cols)
+        cell_h = max(8, (box.h - pad * 2 - gap) // rows)
+        for i in range(cols * rows):
+            cx, cy = i % cols, i // cols
+            x0 = box.x0 + pad + cx * (cell_w + gap)
+            y0 = box.y0 + pad + cy * (cell_h + gap)
+            pulse = 90 + int(80 * (0.5 + 0.5 * math.sin(index + i + beat * 4)))
+            draw.rounded_rectangle(
+                (x0, y0, x0 + cell_w, y0 + cell_h),
+                radius=max(4, int(self.chrome["card_radius"]) // 2),
+                fill=_rgba(self.c_accent if i % 2 == 0 else self.c_hot, pulse),
+            )
+
+    def _visual_wave(self, draw: ImageDraw.ImageDraw, box, index: int, beat: float, pad: int) -> None:
+        mid = box.cy
+        pts = []
+        for x in range(box.x0 + pad, box.x1 - pad, max(4, box.w // 40)):
+            y = mid + int((box.h * 0.18) * math.sin(x * 0.08 + index + beat * 6))
+            pts.append((x, y))
+        if len(pts) > 1:
+            draw.line(pts, fill=_rgba(self.c_accent, 210), width=max(2, pad // 3))
+        for i, (x, y) in enumerate(pts[:: max(1, len(pts) // 8)]):
+            r = 2 + (i + int(beat * 3)) % 3
+            draw.ellipse((x - r, y - r, x + r, y + r), fill=_rgba(self.c_hot, 200))

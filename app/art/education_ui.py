@@ -70,16 +70,21 @@ def draw_title_banner(
     y_frac: float = 0.032,
     layout: KidsLayout | None = None,
     count_label: str = "",
+    fill: tuple[int, ...] = (255, 255, 255),
+    outline: tuple[int, ...] = (60, 80, 110),
+    text_fill: tuple[int, ...] = (40, 60, 90),
+    counter_fill: tuple[int, ...] = (245, 248, 252),
+    radius: int = 16,
 ) -> None:
     del y_frac
     L = _L(width, height, layout)
     b = L.title
-    draw.rounded_rectangle(b.xy, radius=16, fill=(255, 255, 255), outline=(60, 80, 110), width=3)
+    draw.rounded_rectangle(b.xy, radius=max(6, int(radius)), fill=fill, outline=outline, width=3)
     title_right = L.counter.x0 - 8 if count_label else b.x1
     title_cx = (b.x0 + title_right) // 2
     title_w = title_right - b.x0 - 16
-    paint_text(draw, (title_cx, b.cy), title, font, (40, 60, 90), anchor="mm", max_width=title_w)
+    paint_text(draw, (title_cx, b.cy), title, font, text_fill, anchor="mm", max_width=title_w)
     if count_label:
         c = L.counter
-        draw.rounded_rectangle(c.xy, radius=10, fill=(245, 248, 252), outline=(100, 120, 150), width=2)
-        paint_text(draw, (c.cx, c.cy), count_label, font, (70, 85, 110), anchor="mm", max_width=c.w - 8)
+        draw.rounded_rectangle(c.xy, radius=max(6, int(radius) - 6), fill=counter_fill, outline=outline, width=2)
+        paint_text(draw, (c.cx, c.cy), count_label, font, text_fill, anchor="mm", max_width=c.w - 8)

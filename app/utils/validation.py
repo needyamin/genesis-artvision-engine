@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from app.art.visual_variants import (
+    BACKGROUND_VARIANTS,
+    LAYOUT_VARIANTS,
+    VISUAL_VARIANT_VERSION,
+)
 from app.utils.paths import project_root
 
 
@@ -56,6 +62,18 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "how_it_works",
         "trend_brief",
     ],
+    "visual_variation": {
+        "enabled": True,
+        "version": VISUAL_VARIANT_VERSION,
+        "backgrounds": {
+            engine: {name: 1.0 for name in names}
+            for engine, names in BACKGROUND_VARIANTS.items()
+        },
+        "layouts": {
+            engine: {name: 1.0 for name in names}
+            for engine, names in LAYOUT_VARIANTS.items()
+        },
+    },
     "resolutions": [
         "1920x1080",
         "3840x2160",
@@ -140,3 +158,61 @@ def validate_config(config: dict[str, Any]) -> None:
         mode = str((preset or {}).get("caption_mode") or "sidecar")
         if mode not in {"off", "sidecar", "burn", "both"}:
             raise ValueError(f"editing.presets.{name}.caption_mode is invalid: {mode}")
+    _validate_visual_variation(config.get("visual_variation", {}))
+
+
+def _validate_visual_variation(config: Any) -> None:
+    if not isinstance(config, dict):
+        raise ValueError("visual_variation must be a mapping")
+    enabled = config.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise ValueError("visual_variation.enabled must be true or false")
+    version = config.get("version", VISUAL_VARIANT_VERSION)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError("visual_variation.version must be a positive integer")
+
+    for section_name, registry in (
+        ("backgrounds", BACKGROUND_VARIANTS),
+        ("layouts", LAYOUT_VARIANTS),
+    ):
+        section = config.get(section_name) or {}
+        if not isinstance(section, dict):
+            raise ValueError(f"visual_variation.{section_name} must be a mapping")
+        unknown_engines = set(section).difference(registry)
+        if unknown_engines:
+            names = ", ".join(sorted(map(str, unknown_engines)))
+            raise ValueError(
+                f"visual_variation.{section_name} has unknown engines: {names}"
+            )
+        for engine, weights in section.items():
+            if not isinstance(weights, dict):
+                raise ValueError(
+                    f"visual_variation.{section_name}.{engine} must be a "
+                    "name-to-weight mapping"
+                )
+            unknown_names = set(weights).difference(registry[engine])
+            if unknown_names:
+                names = ", ".join(sorted(map(str, unknown_names)))
+                raise ValueError(
+                    f"visual_variation.{section_name}.{engine} has unknown "
+                    f"variants: {names}"
+                )
+            numeric_weights: list[float] = []
+            for name, weight in weights.items():
+                if isinstance(weight, bool) or not isinstance(weight, (int, float)):
+                    raise ValueError(
+                        f"visual_variation.{section_name}.{engine}.{name} "
+                        "must be a numeric weight"
+                    )
+                value = float(weight)
+                if not math.isfinite(value) or value < 0:
+                    raise ValueError(
+                        f"visual_variation.{section_name}.{engine}.{name} "
+                        "must be a finite non-negative weight"
+                    )
+                numeric_weights.append(value)
+            if not numeric_weights or not any(weight > 0 for weight in numeric_weights):
+                raise ValueError(
+                    f"visual_variation.{section_name}.{engine} must enable "
+                    "at least one variant"
+                )
