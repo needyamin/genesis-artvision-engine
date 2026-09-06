@@ -8,6 +8,9 @@ No topic, stock footage, prompt, or music library is required. Optional OpenRout
 
 Full product article: open [`doc/doc.html`](doc/doc.html) in a browser.
 
+<img width="1919" height="1029" alt="Image" src="https://github.com/user-attachments/assets/1a8a2434-921b-4fb6-9760-3efe0ac7d756" />
+<img width="1919" height="1030" alt="Image" src="https://github.com/user-attachments/assets/a3253e61-7d3d-4df4-a5b9-d2148ee5daa4" />
+
 ## What it makes
 
 Three engines, each with a matching look. Engine owns the **concept** (text, pictures, narration). Style owns the **grade and motion**.
@@ -203,6 +206,9 @@ YOUTUBE_CLIENT_SECRET=GOCSPX-your-secret
 Default API quota is about **6 uploads per day** (`youtube.daily_limit` in `config.yaml`). Kids Storybook is marked Made for Kids because that is YouTube’s rule for that engine.
 
 Keep listings honest: titles and hashtags come from the actual story or topic on screen.
+
+<img width="1313" height="456" alt="Image" src="https://github.com/user-attachments/assets/45ecb7ef-bc3d-47a7-ab68-7e0ca2c66570" />
+<img width="1262" height="379" alt="Image" src="https://github.com/user-attachments/assets/5a0efc7b-50fb-46fd-ba9b-65c6162fd4a6" />
 
 ## Optional AI advisor (OpenRouter)
 
