@@ -2,6 +2,8 @@
 
 **ANSNEW TECH**
 
+<img width="1919" height="1032" alt="Image" src="https://github.com/user-attachments/assets/6f5960bd-ee4a-48bd-988a-caff2d8663ed" />
+
 Offline procedural video factory. Press **GENERATE VIDEO** and the app invents a seed, engine, style, palette, background, layout, motion, voice, and soundtrack, then encodes an MP4 locally with FFmpeg.
 
 No stock footage, prompt, or music library is required. Optional OpenRouter advice can suggest creative direction only. Frames, pictures, voice, and audio stay on this machine.
