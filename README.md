@@ -2,13 +2,15 @@
 
 **by ANSNEW TECH**
 
+
+<img width="1919" height="1029" alt="Image" src="https://github.com/user-attachments/assets/1a8a2434-921b-4fb6-9760-3efe0ac7d756" />
+
 Offline procedural art video factory. Press **GENERATE** and the app invents a seed, engine, style, palette, motion, voice, and soundtrack — then encodes an MP4 locally with FFmpeg.
 
 No topic, stock footage, prompt, or music library is required. Optional OpenRouter advice can suggest creative direction only. **Frames, pictures, voice, and audio stay on this machine.**
 
 Full product article: open [`doc/doc.html`](doc/doc.html) in a browser.
 
-<img width="1919" height="1029" alt="Image" src="https://github.com/user-attachments/assets/1a8a2434-921b-4fb6-9760-3efe0ac7d756" />
 <img width="1919" height="1030" alt="Image" src="https://github.com/user-attachments/assets/a3253e61-7d3d-4df4-a5b9-d2148ee5daa4" />
 
 ## What it makes
@@ -183,6 +185,8 @@ python main.py --test
 - Story pictures are drawn locally (`assets/education/words/` and `data/ai_scenes/`). Kids voice uses Windows SAPI when available, then an offline fallback.
 - Optional **OpenRouter AI advisor** can suggest creative direction. Rendering stays offline.
 - Optional **YouTube upload** uses the official YouTube Data API after you connect your own channel.
+  
+<img width="1262" height="379" alt="Image" src="https://github.com/user-attachments/assets/5a0efc7b-50fb-46fd-ba9b-65c6162fd4a6" />
 
 ## YouTube auto-upload
 
@@ -208,7 +212,6 @@ Default API quota is about **6 uploads per day** (`youtube.daily_limit` in `conf
 Keep listings honest: titles and hashtags come from the actual story or topic on screen.
 
 <img width="1313" height="456" alt="Image" src="https://github.com/user-attachments/assets/45ecb7ef-bc3d-47a7-ab68-7e0ca2c66570" />
-<img width="1262" height="379" alt="Image" src="https://github.com/user-attachments/assets/5a0efc7b-50fb-46fd-ba9b-65c6162fd4a6" />
 
 ## Optional AI advisor (OpenRouter)
 
