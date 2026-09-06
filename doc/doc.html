@@ -183,9 +183,10 @@
       <a href="#idea">The idea</a>
       <a href="#who">Who it is for</a>
       <a href="#pipeline">How a video is born</a>
-      <a href="#engines">Eight engines</a>
-      <a href="#kids">Kids learning</a>
-      <a href="#docsci">Science explainers</a>
+      <a href="#engines">Three engines</a>
+      <a href="#kids">Kids storybook</a>
+      <a href="#classroom">How it works</a>
+      <a href="#pulse">Trending brief</a>
       <a href="#look">Styles and finishing</a>
       <a href="#audio">Sound and voice</a>
       <a href="#ai">Optional AI advisor</a>
@@ -200,20 +201,20 @@
     <article>
       <p class="pill">Product article</p>
       <p>Genesis Artvision Engine is desktop software from <strong>ANSNEW TECH</strong>. You do not import clips, write a script, or pick a beat of music. You press Generate. The factory rolls a seed, chooses an art engine and a visual style, paints every frame procedurally, writes a soundtrack, and pipes the result into FFmpeg as an MP4.</p>
-      <p>That is the whole promise: <em>invention, not assembly</em>. The same program can emit a cosmic particle field, a slow alphabet lesson a child can repeat, or a documentary HUD about a telescope. Nothing in the finished file is downloaded as stock video. Pictures for kids words are drawn locally. Voice is Windows text-to-speech when it is available, otherwise an offline voice.</p>
+      <p>That is the whole promise: <em>invention, not assembly</em>. The same program can emit a picture-book story a child can follow, a classroom how-it-works diagram, or a kinetic brief about something trending this week. Nothing in the finished file is downloaded as stock video. Pictures are drawn locally. Voice is Windows text-to-speech when it is available, otherwise an offline voice.</p>
 
       <h2 id="idea">The idea</h2>
-      <p>Most “AI video” tools send your prompt to a cloud model and wait for pixels to come back. Genesis is the opposite shape. It is a <strong>random art video factory</strong>. Random does not mean chaotic. It means a deterministic integer seed expands into a full project specification: resolution, duration, palette, motion, lesson plan, camera, grade, and audio profile.</p>
+      <p>Most “AI video” tools send your prompt to a cloud model and wait for pixels to come back. Genesis is the opposite shape. It is a <strong>random art video factory</strong>. Random does not mean chaotic. It means a deterministic integer seed expands into a full project specification: resolution, duration, palette, motion, story or topic, camera, grade, and audio profile.</p>
       <p>If you run the same seed with the same duration, resolution, and frame rate, you get the same film. History in the GUI stores that seed so you can reprint a video the way a print shop reprints a plate.</p>
       <p>The factory is useful in three jobs at once:</p>
       <ul>
-        <li><strong>Abstract motion design</strong> — particles, galaxies, waves, and tunnels that feel authored, not like a screen saver.</li>
-        <li><strong>Kids learning videos</strong> — alphabet, dictionary (spell a word and say what it means), and real-world add / take-away math, spoken slowly.</li>
-        <li><strong>Science explainers</strong> — infographic HUD pieces with a calm documentary narrator.</li>
+        <li><strong>Kids storybook</strong> — short picture-book pages with matching text, picture, and voice.</li>
+        <li><strong>Everyday education</strong> — classroom diagrams that explain how rain, hearts, lamps, and toasters work.</li>
+        <li><strong>Trending briefs</strong> — kinetic type about a current-web topic, with a calm narrator.</li>
       </ul>
 
       <h2 id="who">Who it is for</h2>
-      <p>Creators who need a stream of original, license-clean shorts without a footage library. Parents and teachers who want simple on-screen lessons. Anyone who wants a documentary-style science clip without filming. Developers who want a local pipeline they can extend with a new engine instead of a new API key.</p>
+      <p>Creators who need a stream of original, license-clean shorts without a footage library. Parents who want a bedtime picture book on screen. Anyone who wants a classroom explainer or a weekly-trend clip without filming. Developers who want a local pipeline they can extend with a new engine instead of a new API key.</p>
       <p>It is not a timeline NLE. You do not trim clips on a track. You choose (or randomize) an engine and a style, set length and size, and let the edit brain pace the shots.</p>
 
       <h2 id="pipeline">How a video is born</h2>
@@ -222,7 +223,7 @@
         <li><strong>Seed.</strong> A new integer, or one you type, or one replayed from History.</li>
         <li><strong>Randomizer.</strong> Builds a <code>ProjectSpec</code>: engine, style, palette, per-engine parameters, duration, fps, resolution.</li>
         <li><strong>Optional advisor.</strong> If OpenRouter is enabled, a JSON creative direction may bias theme, briefs, and on-screen titles. It never paints the movie in the cloud.</li>
-        <li><strong>Lesson or topic.</strong> Kids engines build a shared lesson for picture and voice. The explainer builds a science topic the same way.</li>
+        <li><strong>Lesson or topic.</strong> Kids Storybook builds story pages. How It Works and Trending Brief build a shared topic for picture and voice.</li>
         <li><strong>Offline pictures.</strong> Word cards and suggested scenes are drawn with Pillow on disk.</li>
         <li><strong>Audio.</strong> Procedural music, kids narration, or documentary speech, written as WAV.</li>
         <li><strong>Render.</strong> Each frame is drawn, graded, faded, then piped as raw RGB into FFmpeg with the WAV.</li>
@@ -230,88 +231,56 @@
       </ol>
       <p>The GUI stays responsive because generate runs on a worker thread. Progress shows phase, seed, engine, and — when the advisor is on — what the offline illustrator is drawing.</p>
 
-      <h2 id="engines">Eight engines</h2>
-      <p>Engines are the “what am I looking at.” Styles are the “how it is graded and moved.” Kids engines ignore a wild cosmic grade so letters stay readable.</p>
-
-      <h3>Abstract</h3>
+      <h2 id="engines">Three engines</h2>
+      <p>Engines are the “what am I looking at.” Styles are the “how it is graded and moved.” The engine owns the concept — story, diagram, or trend — so Random never mixes a kids story with a ticker brief.</p>
       <table>
-        <thead><tr><th>Engine</th><th>GUI name</th><th>Character</th></tr></thead>
+        <thead><tr><th>Engine</th><th>GUI name</th><th>Matching style</th><th>Character</th></tr></thead>
         <tbody>
-          <tr><td><code>particles</code></td><td>Particle Universe</td><td>Fields of points, gravity, trails, attraction.</td></tr>
-          <tr><td><code>galaxy</code></td><td>Galaxy / Starfield</td><td>Arms, core glow, drift, star density.</td></tr>
-          <tr><td><code>waves</code></td><td>Waves / Liquid</td><td>Layered frequencies, amplitude, distortion.</td></tr>
-          <tr><td><code>tunnel</code></td><td>Tunnel</td><td>Rings, spokes, twist, pulse through depth.</td></tr>
+          <tr><td><code>kids_storybook</code></td><td>Kids Storybook</td><td>Storybook</td><td>Picture-book pages: title, headline, drawn noun, caption, slow kids voice.</td></tr>
+          <tr><td><code>how_it_works</code></td><td>How It Works</td><td>Classroom</td><td>Everyday processes on a whiteboard: water cycle, heartbeat, electricity, rainbows.</td></tr>
+          <tr><td><code>trend_brief</code></td><td>Trending Brief</td><td>Pulse</td><td>Kinetic type about a current-web topic, with a ticker and fact beats.</td></tr>
         </tbody>
       </table>
 
-      <h3>Kids learning</h3>
-      <table>
-        <thead><tr><th>Engine</th><th>GUI name</th><th>Character</th></tr></thead>
-        <tbody>
-          <tr><td><code>alphabet_cartoon</code></td><td>ABC Educational</td><td>Big letter, word picture, caption; math shows an equation; spell mode reveals one letter at a time.</td></tr>
-          <tr><td><code>kids_doodles</code></td><td>Shapes &amp; Colors</td><td>Count objects for math, show the word for dictionary, shapes and colors for play.</td></tr>
-          <tr><td><code>hand_art</code></td><td>Draw Along</td><td>Step-by-step doodle with a meaning line so drawing still teaches a word.</td></tr>
-        </tbody>
-      </table>
+      <h2 id="kids">Kids storybook</h2>
+      <p>Kids Storybook is a picture book, not an A–Z drill. Each page has a headline, a body line, a spoken <code>voice_line</code>, and one simple noun for the picture (cat, rain, balloon, train).</p>
+      <p>A hard rule holds the page together: <strong>title, text, voice, and picture must agree</strong>. The app will not show a crab, say “Say CAT with me,” and play an alphabet cheer on the same beat. Optional AI suggestions may flavor a picture brief only when they still name the story word.</p>
+      <p>Voice is slow on purpose. On Windows, SAPI is cached under <code>data/ai_voice/</code>. Elsewhere, a procedural voice is used. Layout is a kids grid: title, stage, picture card, caption.</p>
 
-      <h3>Documentary</h3>
-      <p><code>infographic_explainer</code> (Science &amp; Fact Explainer) paints atmospheres, schematics, HUD cards, and metric counters. Topics come from an offline knowledge pack (astronomy, earth science, technology, biology). The soundtrack is a calm narrator, not a kids sing-song.</p>
+      <h2 id="classroom">How it works</h2>
+      <p>How It Works is a short classroom explainer. A process is chosen from an offline catalog, then drawn as a diagram that matches the topic (a heart for heartbeat, a cycle labeled Sun / Cloud / Rain / Sea for the water cycle). Side cards show the step headline, body, and a data point.</p>
+      <p>Audio is a documentary path — slower, lower pitch than kids TTS, mixed over a restrained bed. Style <strong>Classroom</strong> is the default look.</p>
 
-      <h2 id="kids">Kids learning, in detail</h2>
-      <p>Kids videos are meant to teach something a child can say back. Three lesson families share the same slow voice:</p>
-      <div class="grid-2">
-        <div class="card">
-          <h3 style="margin-top:0">Alphabet</h3>
-          <p>One letter, its sound, a word that starts with that letter, and a one-sentence meaning. Example: “Letter A. A says /a/ as in apple. A is for apple. An apple is a fruit you can eat. Say apple.”</p>
-        </div>
-        <div class="card">
-          <h3 style="margin-top:0">Dictionary</h3>
-          <p>Spell the word out loud with pauses (C. A. T.), then the meaning, then “Say cat.” The picture is that word, not a random first letter from other words.</p>
-        </div>
-      </div>
-      <div class="card">
-        <h3 style="margin-top:0">Real-world math</h3>
-        <p>Tiny add and take-away stories from daily life: apples in a basket, birds in a tree, cars on the road. The voice counts the answer slowly (1. 2. 3.) while the screen shows the equation and the objects. It is not abstract algebra.</p>
-      </div>
-      <p>A hard rule holds the lesson together: <strong>letter, word, caption, voice, and picture must agree</strong>. The app will not show B, say “M is for moon,” and draw a sun on the same beat. Optional AI suggestions may flavor a picture brief only when they still name the teaching word.</p>
-      <p>Voice is slow on purpose. Kids SSML uses a slow rate, pauses after single letters and numbers, and keeps one teaching line plus a short cheer so a child can follow. On Windows, SAPI (typically a female voice when installed) is cached under <code>data/ai_voice/</code>. Elsewhere, a procedural voice is used.</p>
-      <p>Layout is a broadcast kids grid: title, stage, picture card, caption. The letter lives in the stage. Captions are not stacked on top of the glyph. Shot grammar is anticipate → pop → hold → picture → hold → celebrate, so nothing flashes every frame.</p>
-
-      <h2 id="docsci">Science explainers</h2>
-      <p>The infographic engine is the flagship “serious” look. A topic is chosen (or randomized), then segmented like a short documentary: headline, body, schematic, HUD metrics. Audio is a separate documentary path — slower, lower pitch than kids TTS, mixed over a restrained bed.</p>
-      <p>Use style <strong>documentary</strong> or leave Random; that style prefers the explainer. You still get procedural pictures, not licensed B-roll.</p>
+      <h2 id="pulse">Trending brief</h2>
+      <p>Trending Brief is kinetic type about something that feels current on the web this week. The engine paints the brief itself: ticker, headline, fact beats. Style <strong>Pulse</strong> is the matching look — faster, punchier, neon accents.</p>
 
       <h2 id="look">Styles and finishing</h2>
-      <p>Seven named styles bias glow, speed, contrast, density, and which engines they like:</p>
+      <p>Three named styles bias glow, speed, contrast, and which engine they like:</p>
       <ul>
-        <li><strong>abstract</strong> — open field, any engine.</li>
-        <li><strong>cosmic</strong> — galaxy, particles, tunnel; slower drift, more glow.</li>
-        <li><strong>minimal</strong> — quieter density; waves and tunnels.</li>
-        <li><strong>organic</strong> — waves and galaxies, softer contrast.</li>
-        <li><strong>digital</strong> — faster, higher contrast particles and tunnels.</li>
-        <li><strong>playful</strong> — prefers the three kids engines.</li>
-        <li><strong>documentary</strong> — prefers the explainer, then space-like abstracts.</li>
+        <li><strong>storybook</strong> — warm paper, pastel grade, slow page pacing. Prefers Kids Storybook.</li>
+        <li><strong>classroom</strong> — clean board, medium contrast, calm diagrams. Prefers How It Works.</li>
+        <li><strong>pulse</strong> — fast, punchy, high energy. Prefers Trending Brief.</li>
       </ul>
-      <p>After the engine draws a frame, a shared finish pass can apply grade, vignette, grain, a gentle push-in, and master fades. Kids engines lock to a broadcast grade: static camera, no grain soup, readable type. The “edit brain” gives abstract engines director time and beat pulse so they do not feel like a looped GIF.</p>
+      <p>If you pick an engine and leave style on Random, the matching look is used. If you pick both by hand, the engine still owns the content; style only changes grade and motion.</p>
+      <p>After the engine draws a frame, a shared finish pass can apply grade, vignette, grain, a gentle push-in, and master fades. Kids Storybook stays readable: static camera, no grain soup.</p>
 
       <h2 id="audio">Sound and voice</h2>
       <p>There is no requirement to drop MP3s into a folder. The factory writes WAV at 44.1 kHz.</p>
       <ul>
-        <li><strong>Abstract:</strong> procedural pads, pulses, and optional mix with files in <code>assets/music</code> if you add them.</li>
-        <li><strong>Kids:</strong> soft pad, letter chimes, and slow narration aligned to lesson segments.</li>
-        <li><strong>Documentary:</strong> calmer speech mixed under a quieter bed.</li>
+        <li><strong>Kids Storybook:</strong> soft pad, page chimes, and slow narration aligned to story pages.</li>
+        <li><strong>How It Works / Trending Brief:</strong> calmer speech mixed under a quieter bed.</li>
       </ul>
       <p>If audio generation fails, the video can still encode silent. Check <code>logs/</code>. Disable audio in the GUI or with <code>--no-audio</code> when you only need picture.</p>
 
       <h2 id="ai">Optional AI advisor</h2>
-      <p>OpenRouter is <strong>off by default</strong>. When you turn it on, it is a creative director, not a renderer. It returns JSON: possible lesson theme, focus words, short voice lines, image briefs, overlay titles. Then:</p>
+      <p>OpenRouter is <strong>off by default</strong>. When you turn it on, it is a creative director, not a renderer. It returns JSON: possible story or topic title, short voice lines, image briefs, overlay titles. Then:</p>
       <ol>
         <li>The <strong>offline illustrator</strong> paints those briefs with Pillow into <code>data/ai_scenes/</code>.</li>
-        <li>Kids lock still rejects a brief or voice that teaches the wrong word.</li>
+        <li>Each engine still paints its own frames. A story stays a story; a diagram stays a diagram.</li>
         <li>Same seed hits a disk cache under <code>data/ai_cache/</code> so you are not billed twice for a reprint.</li>
       </ol>
-      <p>Put <code>OPENROUTER_API_KEY</code> in a root <code>.env</code> copied from <code>.env.example</code>. Never commit <code>.env</code>. Cheapest path: run <code>python main.py --curate</code> once to grow <code>data/ai_catalogs/education.json</code>, then generate offline forever from that catalog.</p>
-      <p>Per-video advisor: GUI Extras checkbox, or <code>python main.py --generate --ai --engine alphabet_cartoon</code>. If a model returns HTTP 402, add credits or stay on <code>openai/gpt-4o-mini</code> in <code>config.yaml</code>.</p>
+      <p>Put <code>OPENROUTER_API_KEY</code> in a root <code>.env</code> copied from <code>.env.example</code>. Never commit <code>.env</code>. Cheapest path: run <code>python main.py --curate</code> once, then generate offline.</p>
+      <p>Per-video advisor: GUI Extras checkbox, or <code>python main.py --generate --ai --engine kids_storybook</code>. If a model returns HTTP 402, add credits or stay on <code>openai/gpt-4o-mini</code> in <code>config.yaml</code>.</p>
 
       <h2 id="use">Using the app</h2>
       <h3>Requirements</h3>
@@ -326,10 +295,12 @@
       <h3>CLI</h3>
       <pre>python main.py --generate
 python main.py --generate --count 10
-python main.py --generate --engine galaxy --style cosmic --duration 30
+python main.py --generate --engine kids_storybook --style storybook --duration 30
+python main.py --generate --engine how_it_works --style classroom
+python main.py --generate --engine trend_brief --style pulse
 python main.py --generate --seed 847293847 --resolution 1920x1080 --fps 30
 python main.py --test</pre>
-      <p><code>--test</code> is a 320×180, 10 fps, 3 second smoke render. <code>--curate</code> only expands education catalogs. <code>--output</code> can redirect the folder.</p>
+      <p><code>--test</code> is a 320×180, 10 fps, 3 second smoke render. <code>--curate</code> expands offline catalogs. <code>--output</code> can redirect the folder.</p>
       <h3>Config</h3>
       <p><code>config.yaml</code> holds default resolution, duration options, bitrate (8M Full HD, 35M 4K), engine list, style list, and the AI block. GUI choices override for that run. Logs go to <code>logs/</code>. SQLite history is <code>data/history.db</code>.</p>
 
@@ -340,16 +311,16 @@ python main.py --test</pre>
       <h2 id="arch">Architecture</h2>
       <pre>main.py                 GUI or CLI entry, loads .env
 config.yaml             defaults
-app/art/                engines, kids lessons, edit brain, word cards
+app/art/                engines, story catalog, diagrams, word cards
 app/audio/              kids TTS, documentary, procedural music
 app/ai/                 advisor, schemas, offline realize, curate
 app/core/               randomizer, VideoFactory
 app/gui/                PySide6 window, settings, progress
-app/video/              FFmpeg pipe, grade, overlays
+app/video/              FFmpeg pipe, grade
 app/database/           history
 output/  temp/  data/   products, scratch, caches
 tests/                  pytest</pre>
-      <p>Each engine subclasses <code>ArtEngine</code>, registers with <code>@register_engine</code>, and returns uint8 RGB frames. The factory owns the order: enrich spec → build lesson/topic → realize local images → audio → render. Kids video and kids audio share one <code>education_lesson</code> dict so they cannot drift apart.</p>
+      <p>Each engine subclasses <code>ArtEngine</code>, registers with <code>@register_engine</code>, and returns uint8 RGB frames. The factory owns the order: enrich spec → build story or topic → realize local images → audio → render. Kids video and kids audio share one <code>education_lesson</code> dict so they cannot drift apart. Topic engines share <code>topic_data</code>.</p>
 
       <h2 id="privacy">Privacy and what stays local</h2>
       <ul>
@@ -361,17 +332,17 @@ tests/                  pytest</pre>
       </ul>
 
       <h2 id="extend">Extending it</h2>
-      <p>To add an engine: new file under <code>app/art/</code>, subclass <code>ArtEngine</code>, implement <code>render_frame</code>, register it, import it from <code>ensure_engines_loaded()</code>, list it in <code>config.yaml</code> and <code>ENGINE_PARAM_SPECS</code>. That is the same path particles and alphabet already use.</p>
-      <p>Kids content lives in <code>app/art/education_content.py</code> (words, meanings, math stories, voice lines). Word drawings live in <code>app/art/word_images.py</code>. Keep letter and word aligned if you add a theme.</p>
+      <p>To add an engine: new file under <code>app/art/</code>, subclass <code>ArtEngine</code>, implement <code>render_frame</code>, register it, import it from <code>ensure_engines_loaded()</code>, list it in <code>config.yaml</code> and <code>ENGINE_PARAM_SPECS</code>.</p>
+      <p>Kids stories live in <code>app/art/storybook_content.py</code>. How-it-works processes live in <code>app/art/how_it_works_content.py</code>. Trend topics live in <code>app/art/trend_content.py</code>. Word drawings live in <code>app/art/word_images.py</code>.</p>
       <p>Tests: <code>python -m pytest tests/ -q</code>. A fast picture check: <code>python main.py --test</code>.</p>
 
       <h2 id="faq">FAQ</h2>
-      <p><strong>Why does an old kids MP4 still sound wrong?</strong> Files already in <code>output/</code> are not rewritten. Generate again after the teaching-lock work. Same seed with the new code will rebuild voice and pictures correctly.</p>
-      <p><strong>Why is kids speech slow?</strong> So a child can copy letters and counts. Adult documentary speech stays medium.</p>
+      <p><strong>Why does an old MP4 still look like the previous engines?</strong> Files already in <code>output/</code> are not rewritten. Generate again. Same seed with the new code will rebuild picture and voice.</p>
+      <p><strong>Why is kids speech slow?</strong> So a child can follow the page. Adult documentary speech stays medium.</p>
       <p><strong>Can it make photoreal people?</strong> No. The offline illustrator is a stylized painter. That is intentional: no stock, no face models.</p>
       <p><strong>Linux / macOS?</strong> FFmpeg + Python should render. Kids SAPI is Windows; other platforms use the procedural voice fallback.</p>
-      <p><strong>Where do I start?</strong> Install FFmpeg, <code>pip install -r requirements.txt</code>, <code>python main.py</code>, press Generate. For a learning clip, set engine to ABC Educational or Shapes &amp; Colors and style to Playful.</p>
-      <p>Shorter install notes also live in <a href="README.md">README.md</a>.</p>
+      <p><strong>Where do I start?</strong> Install FFmpeg, <code>pip install -r requirements.txt</code>, <code>python main.py</code>, press Generate. For a story, set engine to Kids Storybook and style to Storybook.</p>
+      <p>Shorter install notes also live in <a href="../README.md">README.md</a>.</p>
     </article>
   </div>
 

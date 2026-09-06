@@ -11,6 +11,7 @@ import numpy as np
 from app.audio.offline_tts import kids_narration_lines, speak_narration
 from app.audio.procedural_music import _adsr, _midi_to_hz, _osc, _soft_reverb
 from app.audio.procedural_voice import mix_speech_at
+from app.audio.voice_sync import apply_speech_holds
 
 ProgressFn = Callable[[dict[str, Any]], None]
 
@@ -54,7 +55,7 @@ def fit_lesson_to_narration(
     on_progress: ProgressFn | None = None,
 ) -> float:
     """
-    Size each lesson beat so the full kids voice can play while that letter stays on screen.
+    Size each story page so the full voice line can play while that page stays on screen.
 
     Returns the new duration in seconds. Updates segment t0/t1 fractions in place.
     """
@@ -67,8 +68,7 @@ def fit_lesson_to_narration(
     profile = audio_profile if isinstance(audio_profile, dict) else {}
     voice_rate = float(max(0.70, min(0.94, profile.get("voice_rate", 0.86))))
     voice_pitch = float(max(1.02, min(1.16, profile.get("voice_pitch", 1.10))))
-    engine = str(lesson.get("engine", "alphabet_cartoon"))
-    pitch = voice_pitch if engine != "hand_art" else min(voice_pitch, 1.12)
+    pitch = voice_pitch
 
     n_seg = len(segments)
     durations: list[float] = [0.0] * n_seg
@@ -135,21 +135,7 @@ def fit_lesson_to_narration(
         segments[i]["speech_seconds"] = float(speech_sec)
         durations[i] = hold
 
-    total = float(sum(durations) + END_PAD_SEC)
-    total = max(total, float(min_duration), 1.0)
-    # If the user asked for a longer video, stretch beats evenly after speech is covered.
-    extra = total - (sum(durations) + END_PAD_SEC)
-    if extra > 0.05 and durations:
-        bump = extra / len(durations)
-        durations = [d + bump for d in durations]
-        total = float(sum(durations) + END_PAD_SEC)
-
-    t = 0.0
-    for seg, hold in zip(segments, durations):
-        seg["t0"] = t / total
-        seg["t1"] = (t + hold) / total
-        t += hold
-
+    total = apply_speech_holds(segments, durations, min_duration=min_duration, end_pad=END_PAD_SEC)
     lesson["duration"] = total
     lesson["speech_synced"] = True
     return total
@@ -194,10 +180,9 @@ def generate_kids_education_audio(
         lfo = 0.55 + 0.45 * np.sin(2 * np.pi * (0.05 + amp) * t)
         audio += wave * lfo * amp * pad_gain * bright
 
-    engine = str(lesson.get("engine", "alphabet_cartoon"))
     segments = list(lesson.get("segments") or [])
     if not segments:
-        segments = [{"t0": 0.0, "t1": 1.0, "letter": "A", "word": "APPLE", "voice_line": "A is for apple"}]
+        segments = [{"t0": 0.0, "t1": 1.0, "kind": "story", "word": "STORY", "voice_line": "Let's read a story."}]
 
     tempo = float(profile.get("tempo_bpm") or rng.uniform(88, 112))
     tempo = max(40.0, min(180.0, tempo))
@@ -207,20 +192,13 @@ def generate_kids_education_audio(
     for seg in segments:
         t0 = float(seg.get("t0", 0.0)) * duration
         t1 = float(seg.get("t1", 1.0)) * duration
-        letter = str(seg.get("letter", seg.get("color_name", "A"))[:1] or "A")
+        letter = str(seg.get("letter", "")[:1] or (str(seg.get("word") or "S")[:1]))
         word = str(seg.get("word", "FUN"))
-        shape = str(seg.get("shape", ""))
         start = int(t0 * sample_rate)
         if start >= n:
             continue
 
-        # Segment chime — letter, color name, or shape cue
-        if engine == "kids_doodles" and seg.get("color_name"):
-            root = _letter_midi(str(seg["color_name"])[0])
-        elif engine == "hand_art":
-            root = _letter_midi(word[0] if word else "A")
-        else:
-            root = _letter_midi(letter)
+        root = _letter_midi(letter if letter.isalpha() else (word[:1] if word else "C"))
 
         chime_notes = ((root, 0.28, 0.22), (root + 7, 0.22, 0.16), (root + 12, 0.18, 0.12))
         if chime_density < 0.35:
@@ -240,7 +218,7 @@ def generate_kids_education_audio(
 
         # Keep flourish off while the teacher is speaking so kids hear the word clearly.
         if not voice_enabled:
-            flourish = word if word else shape.upper()
+            flourish = word
             flourish_n = max(2, int(round(6 * chime_density)))
             for k, ch in enumerate(flourish[:flourish_n]):
                 midi = _letter_midi(ch if ch.isalpha() else letter)
@@ -256,7 +234,7 @@ def generate_kids_education_audio(
         if voice_enabled:
             lines = kids_narration_lines(seg)
             if lines:
-                pitch = voice_pitch if engine != "hand_art" else min(voice_pitch, 1.12)
+                pitch = voice_pitch
                 speech = speak_narration(
                     lines,
                     sample_rate=sample_rate,
@@ -267,8 +245,8 @@ def generate_kids_education_audio(
                 )
                 lead = float(seg.get("speech_lead", VOICE_LEAD_SEC))
                 voice_start = start + int(lead * sample_rate)
-                # Never cut the teacher mid-word. Clip only if the clip would leave the file.
-                room = max(0, n - voice_start)
+                # Stay on this page: never spill speech into the next beat.
+                room = max(0, min(n, int(t1 * sample_rate)) - voice_start)
                 if room <= 0:
                     continue
                 if len(speech) > room:

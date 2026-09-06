@@ -160,16 +160,3 @@ def kids_layout(width: int, height: int) -> KidsLayout:
         picture_size=picture_size,
         orientation=orientation,
     )
-
-
-def chart_cell_center(layout: KidsLayout, index: int, count: int, cols: int) -> tuple[int, int]:
-    cols = max(1, int(cols))
-    rows = max(1, int((max(1, count) + cols - 1) // cols))
-    col = index % cols
-    row = index // cols
-    cell_w = layout.stage.w / cols
-    cell_h = layout.stage.h / rows
-    return (
-        int(layout.stage.x0 + (col + 0.5) * cell_w),
-        int(layout.stage.y0 + (row + 0.5) * cell_h),
-    )

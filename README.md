@@ -2,21 +2,23 @@
 
 **by ANSNEW TECH**
 
-Offline procedural art video factory. Press **GENERATE** and the app invents a seed, art engine, style, palette, motion, voice, and soundtrack — then encodes an MP4 locally with FFmpeg.
+Offline procedural art video factory. Press **GENERATE** and the app invents a seed, engine, style, palette, motion, voice, and soundtrack — then encodes an MP4 locally with FFmpeg.
 
 No topic, stock footage, prompt, or music library is required. Optional OpenRouter advice can suggest creative direction only. **Frames, pictures, voice, and audio stay on this machine.**
 
-Full product article: open [`doc.html`](doc.html) in a browser.
+Full product article: open [`doc/doc.html`](doc/doc.html) in a browser.
 
 ## What it makes
 
-| Family | Engines | What you get |
-|--------|---------|----------------|
-| Abstract art | `particles`, `galaxy`, `waves`, `tunnel` | Motion graphics with grade, camera, and procedural music |
-| Kids learning | `alphabet_cartoon`, `kids_doodles`, `hand_art` | Alphabet, dictionary spelling + meaning, real-world add/take-away math, slow kids TTS |
-| Documentary | `infographic_explainer` | Science HUD explainers with a calm narrator |
+Three engines, each with a matching look. Engine owns the **concept** (text, pictures, narration). Style owns the **grade and motion**.
 
-Seven looks: **abstract, cosmic, minimal, organic, digital, playful, documentary**. Kids engines stay broadcast-clean (no cosmic grain over letters). Each teaching beat keeps the **same letter, word, voice, and picture**.
+| Engine | Style | What you get |
+|--------|-------|----------------|
+| `kids_storybook` — Kids Storybook | `storybook` | Picture-book pages: story title, page text, a drawn noun, slow kids voice |
+| `how_it_works` — How It Works | `classroom` | Everyday classroom diagrams (water cycle, heartbeat, electricity…) plus a calm narrator |
+| `trend_brief` — Trending Brief | `pulse` | Kinetic type about a current-web topic, documentary voice over a pulse bed |
+
+If you leave Engine or Style on Random, they pair together. If you pick both by hand, the engine still decides the content.
 
 ## Requirements
 
@@ -49,7 +51,7 @@ python main.py --test
 python main.py
 ```
 
-Click **GENERATE**. Leave Engine/Style on Random, or pick a kids / documentary engine on purpose.
+Click **GENERATE**. Leave Engine/Style on Random, or pick a storybook / classroom / pulse pair on purpose.
 
 ## Run CLI
 
@@ -67,8 +69,9 @@ python main.py --generate --duration 30 --resolution 1920x1080 --fps 30
 python main.py --generate --seed 847293847
 
 # Force engine / style
-python main.py --generate --engine galaxy --style cosmic
-python main.py --generate --engine alphabet_cartoon --style playful
+python main.py --generate --engine kids_storybook --style storybook
+python main.py --generate --engine how_it_works --style classroom
+python main.py --generate --engine trend_brief --style pulse
 
 # Fast developer test (320x180, 10fps, 3s)
 python main.py --test
@@ -95,7 +98,7 @@ History stores seed + parameter JSON so you can re-generate from the GUI (**View
 2. Subclass `ArtEngine`, set `name`, implement `render_frame`
 3. Decorate with `@register_engine`
 4. Import it from `ensure_engines_loaded()` in `app/art/base.py`
-5. Add the name to `config.yaml` → `engines` and optionally `ENGINE_PARAM_SPECS` in `randomizer.py`
+5. Add the name to `config.yaml` → `engines` and `ENGINE_PARAM_SPECS` in `randomizer.py`
 
 ```python
 from app.art.base import ArtEngine, register_engine
@@ -118,10 +121,10 @@ class MyEngine(ArtEngine):
 random_art_video_factory/
   main.py
   config.yaml
-  doc.html        # full product article
+  doc/doc.html    # full product article
   requirements.txt
   app/
-    art/          # procedural engines + kids lessons
+    art/          # storybook, how-it-works, trending-brief engines
     audio/        # kids TTS, documentary voice, music
     ai/           # optional OpenRouter advisor (offline realize)
     core/         # randomizer, factory, scheduler
@@ -143,7 +146,7 @@ random_art_video_factory/
 | GUI won't start | `pip install PySide6` |
 | Slow renders | Use `--test`, lower resolution, or shorter duration |
 | No audio in MP4 | Check logs; video still encodes if audio fails |
-| Kids voice too fast / wrong word | Generate a **new** file after the teaching-lock update; old MP4s are not rewritten |
+| Story voice or picture feels wrong | Generate a **new** file; old MP4s are not rewritten |
 | Disk filling up | Use **Clean Temporary Files** or delete `temp/` |
 | Reproduce a video | Use the seed from History / filename metadata in the DB |
 
@@ -157,8 +160,8 @@ python main.py --test
 ## Notes
 
 - Assets in `assets/music` are optional; the app works with an empty assets folder.
-- Kids pictures are drawn locally (`assets/education/words/` and `data/ai_scenes/`). Kids voice uses Windows SAPI when available, then an offline fallback.
-- Optional **OpenRouter AI advisor** can suggest creative direction / expand kids catalogs. Rendering stays offline.
+- Story pictures are drawn locally (`assets/education/words/` and `data/ai_scenes/`). Kids voice uses Windows SAPI when available, then an offline fallback.
+- Optional **OpenRouter AI advisor** can suggest creative direction. Rendering stays offline.
 
 ## Optional AI advisor (OpenRouter)
 
@@ -188,19 +191,18 @@ Get a key: [openrouter.ai/keys](https://openrouter.ai/keys).
 
 ### Using the advisor
 
-1. **Preferred (cheap):** expand offline education catalogs once:
+1. **Preferred (cheap):** expand offline catalogs once:
 
 ```bash
 python main.py --curate
-python main.py --curate --letters A,B,C
 ```
 
-Writes `data/ai_catalogs/education.json`. Later generates use it with **no API calls**.
+Writes `data/ai_catalogs/education.json`. Later generates use cached direction with **no API calls** when per-video AI is off.
 
 2. **Per-video advisor** (optional, costs per call; results cached under `data/ai_cache/`):
 
 ```bash
-python main.py --generate --ai --engine alphabet_cartoon --count 1
+python main.py --generate --ai --engine kids_storybook --count 1
 ```
 
 Or enable **AI creative advisor (OpenRouter)** in the GUI Extras panel / set in `config.yaml`:
@@ -219,12 +221,12 @@ Defaults keep `enabled: false` so the app remains fully offline. If Gemini model
 1. Put `OPENROUTER_API_KEY` in root `.env` (see `.env.example`).
 2. Expand offline content cheaply once: `python main.py --curate`
 3. Start the GUI and enable **AI creative advisor (OpenRouter)** in Extras.
-4. Leave Engine/Style on **Random** (or pick a kids engine on purpose).
+4. Leave Engine/Style on **Random**, or pick a matching pair (Kids Storybook + Storybook, How It Works + Classroom, Trending Brief + Pulse).
 5. Press **GENERATE**. The Progress panel **AI creative director** box shows live status. The window stays responsive while the advisor runs.
 6. Confirm the status bar: `AI applied`. Same seed regenerates the same cached look.
 7. For cheap batches: curate often; use per-video AI only when you want a fresh creative-director pass.
 
-The advisor cannot paint photoreal frames or replace the soundtrack with studio vocals. It suggests **image briefs and on-screen text** per beat. The **offline illustrator** draws those cards locally. Kids lessons **lock** letter, word, voice, and picture together so a suggestion cannot teach the wrong word.
+The advisor cannot paint photoreal frames or replace the soundtrack with studio vocals. It suggests **image briefs and on-screen text** for the engine you chose. Each engine paints its own frames: story pages, classroom diagrams, or kinetic type.
 
 ---
 

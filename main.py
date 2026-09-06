@@ -44,18 +44,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--curate",
         action="store_true",
-        help="Expand offline education catalogs via OpenRouter (no video render)",
+        help="Expand offline catalogs via OpenRouter (no video render)",
     )
     parser.add_argument(
         "--letters",
         type=str,
         default=None,
         help="Comma-separated letters for --curate (default: full alphabet)",
-    )
-    parser.add_argument(
-        "--complete-az",
-        action="store_true",
-        help="With --engine alphabet_cartoon: teach every letter A–Z (CLI only)",
     )
     return parser
 
@@ -129,9 +124,6 @@ def run_cli(args: argparse.Namespace) -> int:
         }
         if args.output:
             overrides["output_dir"] = args.output
-
-    if getattr(args, "complete_az", False):
-        overrides["complete_alphabet"] = True
 
     factory = VideoFactory(config)
     results = factory.generate_batch(**{k: v for k, v in overrides.items() if v is not None})

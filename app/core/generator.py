@@ -9,15 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from app.art.education_content import (
-    KIDS_EDUCATION_ENGINES,
-    build_lesson_for_engine,
-    ensure_ai_catalogs_loaded,
-)
+from app.art.storybook_content import build_storybook_lesson
 from app.audio.generator import AudioGenerator
 from app.audio.kids_education import fit_lesson_to_narration
 from app.core.project import cleanup_work_dir, make_work_dir, next_output_paths
-from app.core.randomizer import ProjectSpec, Randomizer
+from app.core.randomizer import KIDS_ENGINES, ProjectSpec, Randomizer, TOPIC_BRIEF_ENGINES
 from app.core.scheduler import BatchScheduler
 from app.database.database import Database, HistoryRow
 from app.utils.logger import get_logger
@@ -77,7 +73,6 @@ class VideoFactory:
         random_resolution: bool = False,
         random_fps: bool = False,
         random_duration: bool = False,
-        complete_alphabet: bool = False,
         control: RenderControl | None = None,
         on_progress: ProgressFn | None = None,
         output_dir: str | Path | None = None,
@@ -95,11 +90,6 @@ class VideoFactory:
             random_fps=random_fps,
             random_duration=random_duration,
         )
-        if complete_alphabet and spec.engine == "alphabet_cartoon":
-            spec.params["complete_alphabet"] = True
-            spec.params["include_numbers"] = False
-            spec.params["mode"] = "lesson"
-            spec.params["lesson_theme"] = "abc_complete"
         return self.render_spec(spec, control=control, on_progress=on_progress, output_dir=output_dir)
 
     def render_spec(
@@ -141,41 +131,64 @@ class VideoFactory:
             # Optional AI creative advisor (cached JSON suggestions only)
             from app.ai.advisor import maybe_enrich_spec
 
-            ensure_ai_catalogs_loaded(self.config)
             spec = maybe_enrich_spec(spec, self.config, on_progress=on_progress)
 
             if control and control.stopped:
                 raise InterruptedError("Render cancelled by user")
 
-            # Informative documentary explainer: shared topic for video + audio
-            if spec.engine == "infographic_explainer":
-                from app.art.knowledge_content import build_knowledge_topic
+            # Engine owns the concept bag. Never mix story pages with topic briefs.
+            if spec.engine in TOPIC_BRIEF_ENGINES:
+                spec.params.pop("education_lesson", None)
                 topic_data = spec.params.get("topic_data")
                 if not isinstance(topic_data, dict):
-                    domain = str(spec.params.get("domain") or "all")
                     topic_id = spec.params.get("topic_id")
-                    topic_data = build_knowledge_topic(
-                        spec.seed,
-                        spec.duration,
-                        domain=domain,
-                        topic_id=str(topic_id) if topic_id else None,
-                        params=spec.params,
+                    if spec.engine == "how_it_works":
+                        from app.art.how_it_works_content import build_how_it_works_topic
+
+                        topic_data = build_how_it_works_topic(
+                            spec.seed,
+                            spec.duration,
+                            topic_id=str(topic_id) if topic_id else None,
+                            params=spec.params,
+                        )
+                    else:
+                        from app.art.trend_content import build_trend_topic
+
+                        topic_data = build_trend_topic(
+                            spec.seed,
+                            spec.duration,
+                            topic_id=str(topic_id) if topic_id else None,
+                            params=spec.params,
+                        )
+                    spec.params["topic_data"] = topic_data
+                if spec.audio_enabled and isinstance(topic_data, dict):
+                    if on_progress:
+                        on_progress(
+                            {
+                                "phase": "voice",
+                                "seed": spec.seed,
+                                "engine": spec.engine,
+                                "style": spec.style,
+                                "message": "Timing pictures to the narration…",
+                            }
+                        )
+                    from app.audio.documentary_soundtrack import fit_topic_to_narration
+
+                    sample_rate = int(self.config.get("audio", {}).get("sample_rate", 44100))
+                    topic_dur = fit_topic_to_narration(
+                        topic_data,
+                        seed=spec.seed,
+                        sample_rate=sample_rate,
+                        min_duration=spec.duration,
+                        on_progress=on_progress,
                     )
+                    spec.duration = max(spec.duration, topic_dur)
+                    topic_data["duration"] = spec.duration
                     spec.params["topic_data"] = topic_data
                 spec.params["_duration"] = spec.duration
-
-            # Kids educational engines: shared lesson for video + audio
-            if spec.engine != "alphabet_cartoon":
-                spec.params.pop("complete_alphabet", None)
-            elif spec.params.get("complete_alphabet"):
-                spec.params["include_numbers"] = False
-                spec.params["mode"] = "lesson"
-                spec.params["lesson_theme"] = "abc_complete"
-                spec.params.pop("ai_segment_plan", None)
-                spec.params.pop("segment_weights", None)
-            if spec.engine in KIDS_EDUCATION_ENGINES:
-                lesson = build_lesson_for_engine(
-                    spec.engine,
+            elif spec.engine in KIDS_ENGINES:
+                spec.params.pop("topic_data", None)
+                lesson = build_storybook_lesson(
                     spec.seed,
                     spec.duration,
                     params=spec.params,
@@ -183,16 +196,10 @@ class VideoFactory:
                 if lesson:
                     spec.params["_duration"] = spec.duration
                     spec.params["education_lesson"] = lesson
-                    if spec.engine == "alphabet_cartoon":
-                        vis = str(lesson.get("visual_mode") or "lesson")
-                        spec.params["mode"] = vis if vis in {
-                            "chart", "focus", "parade", "lesson", "spell",
-                        } else "lesson"
                     spec.params["_kids_text"] = True
                     spec.params["easing"] = "smooth"
                     spec.params["camera_feel"] = "static"
                     spec.params["edit_feel"] = "kids_show"
-                    spec.params["grade"] = "broadcast"
                     spec.params["camera_push"] = 0.0
                     spec.params["grain"] = 0.0
                     profile = spec.params.get("audio_profile")
@@ -224,9 +231,7 @@ class VideoFactory:
                         spec.params["glow"] = 0.12
 
                     # Hold each picture for the full spoken line so kids can follow.
-                    should_fit = spec.audio_enabled and (
-                        bool(lesson.get("complete_alphabet")) or spec.duration >= 8.0
-                    )
+                    should_fit = spec.audio_enabled
                     lesson_dur = float(lesson.get("duration") or spec.duration)
                     if should_fit:
                         if on_progress:
@@ -236,7 +241,7 @@ class VideoFactory:
                                     "seed": spec.seed,
                                     "engine": spec.engine,
                                     "style": spec.style,
-                                    "message": "Timing kids voice to each letter…",
+                                    "message": "Timing story pages to the narration…",
                                 }
                             )
                         sample_rate = int(self.config.get("audio", {}).get("sample_rate", 44100))
@@ -264,6 +269,14 @@ class VideoFactory:
                                 "preview": None,
                             }
                         )
+
+            spec.duration = max(float(spec.duration), 1.0 / max(1, spec.fps))
+            spec.duration = spec.total_frames / float(max(1, spec.fps))
+            spec.params["_duration"] = spec.duration
+            if isinstance(spec.params.get("education_lesson"), dict):
+                spec.params["education_lesson"]["duration"] = spec.duration
+            if isinstance(spec.params.get("topic_data"), dict):
+                spec.params["topic_data"]["duration"] = spec.duration
 
             from app.ai.realize import realize_visual_assets
 

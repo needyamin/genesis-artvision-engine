@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
+
 import numpy as np
 
 from app.audio.offline_tts import documentary_narration_lines, speak_documentary
 from app.audio.procedural_music import _adsr, _midi_to_hz, _osc, _soft_reverb
 from app.audio.procedural_voice import mix_speech_at
+from app.audio.voice_sync import apply_speech_holds
+
+ProgressFn = Callable[[dict[str, Any]], None]
+
+VOICE_LEAD_SEC = 0.35
+VOICE_TAIL_SEC = 0.70
+MIN_SEGMENT_SEC = 4.0
+END_PAD_SEC = 1.2
 
 
 def _add_whoosh_transition(audio: np.ndarray, start_idx: int, sr: int, rng: np.random.Generator) -> None:
@@ -46,6 +55,56 @@ def _add_telemetry_beep(audio: np.ndarray, start_idx: int, sr: int, pitch: float
     audio[start_idx : start_idx + n_b] += beep
 
 
+def fit_topic_to_narration(
+    topic: dict[str, Any],
+    *,
+    seed: int,
+    sample_rate: int = 44100,
+    min_duration: float = 0.0,
+    on_progress: ProgressFn | None = None,
+) -> float:
+    """Hold each explainer beat until its voice line has finished."""
+    segments = list(topic.get("segments") or [])
+    if not segments:
+        total = max(float(min_duration), float(topic.get("duration") or 1.0), 1.0)
+        topic["duration"] = total
+        return total
+
+    holds: list[float] = []
+    for i, seg in enumerate(segments):
+        lines = documentary_narration_lines(seg)
+        speech_sec = 2.4
+        if lines:
+            speech = speak_documentary(
+                lines,
+                sample_rate=sample_rate,
+                pitch=1.0,
+                speed=0.98,
+                seed=seed + i * 47,
+            )
+            if len(speech) > 8:
+                speech_sec = max(speech_sec, len(speech) / float(sample_rate))
+        lead = VOICE_LEAD_SEC if i else max(VOICE_LEAD_SEC, 0.55)
+        hold = max(MIN_SEGMENT_SEC, lead + speech_sec + VOICE_TAIL_SEC)
+        seg["speech_lead"] = lead
+        seg["speech_seconds"] = float(speech_sec)
+        holds.append(hold)
+        if on_progress:
+            on_progress(
+                {
+                    "phase": "voice",
+                    "frame": i + 1,
+                    "total_frames": len(segments),
+                    "message": f"Timing voice · {i + 1} of {len(segments)}",
+                }
+            )
+
+    total = apply_speech_holds(segments, holds, min_duration=min_duration, end_pad=END_PAD_SEC)
+    topic["duration"] = total
+    topic["speech_synced"] = True
+    return total
+
+
 def generate_documentary_audio(
     duration: float,
     seed: int,
@@ -63,7 +122,7 @@ def generate_documentary_audio(
     - Synchronized offline voice narration with intelligent audio ducking
     """
     rng = np.random.default_rng(seed + 107)
-    n = max(1, int(duration * sample_rate))
+    n = max(1, int(round(duration * sample_rate)))
     audio = np.zeros(n, dtype=np.float32)
     t = np.arange(n, dtype=np.float32) / sample_rate
 
@@ -135,18 +194,19 @@ def generate_documentary_audio(
                     speed=0.98,
                     seed=seed + i * 47,
                 )
-                max_speech_len = int(max(0.5, (t1 - t0) - 0.4) * sample_rate)
-                if len(speech) > max_speech_len:
-                    speech = speech[:max_speech_len]
-
-                speech_start = s0 + int(0.3 * sample_rate)
-                # Intelligently duck the background bed music during speech
+                lead = float(seg.get("speech_lead", VOICE_LEAD_SEC))
+                speech_start = s0 + int(lead * sample_rate)
+                room = max(0, min(n, s1) - speech_start)
+                if room <= 0:
+                    continue
+                if len(speech) > room:
+                    speech = speech[:room]
                 mix_speech_at(
                     audio,
                     speech,
                     speech_start,
-                    bed_gain=0.20,     # Music drops to 20% (-14dB) while speaking
-                    speech_gain=1.05,   # Clear articulate voice level
+                    bed_gain=0.20,
+                    speech_gain=1.05,
                 )
 
     # Reverb and smooth master fade

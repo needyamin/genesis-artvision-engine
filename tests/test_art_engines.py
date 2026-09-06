@@ -12,10 +12,20 @@ sys.path.insert(0, str(ROOT))
 
 from app.art.base import ensure_engines_loaded, get_engine, list_engines
 from app.art.edit_brain import STYLE_MOTION, style_motion
-from app.art.palette import generate_palette
 from app.art.styles import STYLE_EDIT, list_styles
 from app.core.randomizer import ENGINE_PARAM_SPECS, Randomizer
 from app.utils.validation import load_config
+
+REQUIRED_ENGINES = [
+    "kids_storybook",
+    "how_it_works",
+    "trend_brief",
+]
+REQUIRED_STYLES = [
+    "storybook",
+    "classroom",
+    "pulse",
+]
 
 
 def test_all_engines_registered():
@@ -23,13 +33,14 @@ def test_all_engines_registered():
     engines = list_engines()
     for name in ENGINE_PARAM_SPECS:
         assert name in engines, f"missing engine {name}"
+    assert set(engines) == set(REQUIRED_ENGINES)
 
 
-def test_particles_are_sequential_other_engines_parallel():
+def test_new_engines_are_parallel():
     ensure_engines_loaded()
-    assert get_engine("particles").parallel_frames is False
-    assert get_engine("alphabet_cartoon").parallel_frames is True
-    assert get_engine("galaxy").parallel_frames is True
+    assert get_engine("kids_storybook").parallel_frames is True
+    assert get_engine("how_it_works").parallel_frames is True
+    assert get_engine("trend_brief").parallel_frames is True
 
 
 def test_each_engine_renders_frame():
@@ -55,35 +66,14 @@ def test_each_engine_renders_frame():
 def test_deterministic_frames():
     cfg = load_config()
     rnd = Randomizer(cfg)
-    spec = rnd.create_project(seed=999, engine="particles", resolution="160x90", fps=10, duration=1)
+    spec = rnd.create_project(seed=999, engine="trend_brief", resolution="160x90", fps=10, duration=1)
     frames = []
     for _ in range(2):
-        eng = get_engine("particles")
+        eng = get_engine("trend_brief")
         eng.setup(160, 90, 10, spec.seed, spec.params, spec.palette())
         frames.append(eng.render_frame(3, 10))
         eng.cleanup()
     assert np.array_equal(frames[0], frames[1])
-
-
-REQUIRED_ENGINES = [
-    "particles",
-    "galaxy",
-    "waves",
-    "tunnel",
-    "alphabet_cartoon",
-    "hand_art",
-    "kids_doodles",
-    "infographic_explainer",
-]
-REQUIRED_STYLES = [
-    "abstract",
-    "cosmic",
-    "minimal",
-    "organic",
-    "digital",
-    "playful",
-    "documentary",
-]
 
 
 def test_required_engines_and_styles_are_complete():
@@ -97,6 +87,7 @@ def test_required_engines_and_styles_are_complete():
         assert name in styles
         assert name in STYLE_EDIT
         assert name in STYLE_MOTION
+    assert styles == set(REQUIRED_STYLES)
 
 
 def test_each_style_has_its_own_edit_and_motion():
@@ -115,8 +106,7 @@ def test_each_style_has_its_own_edit_and_motion():
             )
         )
     assert len(set(signatures)) == len(REQUIRED_STYLES)
-    assert style_motion("digital").speed > style_motion("minimal").speed
-    assert style_motion("cosmic").core > style_motion("minimal").core
+    assert style_motion("pulse").speed > style_motion("storybook").speed
 
 
 def test_every_engine_every_style_renders_a_frame():
@@ -144,28 +134,28 @@ def test_every_engine_every_style_renders_a_frame():
             assert frame.dtype == np.uint8
 
 
-def test_kids_engines_stay_broadcast_when_style_is_cosmic():
+def test_kids_storybook_uses_storybook_edit():
     cfg = load_config()
     rnd = Randomizer(cfg)
     spec = rnd.create_project(
         seed=7,
-        engine="alphabet_cartoon",
-        style="cosmic",
+        engine="kids_storybook",
+        style="pulse",
         resolution="320x180",
         fps=10,
         duration=5,
     )
     assert spec.params["edit_feel"] == "kids_show"
-    assert spec.params["grade"] == "broadcast"
-    assert spec.params["style"] == "cosmic"
+    assert spec.params["grade"] == "pastel"
+    assert spec.params["style"] == "pulse"
 
 
-def test_abstract_styles_keep_distinct_grades():
+def test_remaining_styles_keep_distinct_grades():
     cfg = load_config()
     rnd = Randomizer(cfg)
-    cosmic = rnd.create_project(seed=11, engine="galaxy", style="cosmic", resolution="160x90", fps=10, duration=1)
-    digital = rnd.create_project(seed=11, engine="tunnel", style="digital", resolution="160x90", fps=10, duration=1)
-    minimal = rnd.create_project(seed=11, engine="waves", style="minimal", resolution="160x90", fps=10, duration=1)
-    assert cosmic.params["grade"] == "cinematic"
-    assert digital.params["grade"] == "vivid"
-    assert minimal.params["grade"] == "soft"
+    story = rnd.create_project(seed=11, engine="kids_storybook", style="storybook", resolution="160x90", fps=10, duration=1)
+    classroom = rnd.create_project(seed=11, engine="how_it_works", style="classroom", resolution="160x90", fps=10, duration=1)
+    pulse = rnd.create_project(seed=11, engine="trend_brief", style="pulse", resolution="160x90", fps=10, duration=1)
+    assert story.params["grade"] == "pastel"
+    assert classroom.params["grade"] == "soft"
+    assert pulse.params["grade"] == "vivid"

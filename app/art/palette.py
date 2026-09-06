@@ -69,7 +69,7 @@ def _hsl_to_rgb(h: float, s: float, l: float) -> tuple[float, float, float]:
     return (r, g, b)
 
 
-def generate_palette(rng: np.random.Generator, style: str = "abstract") -> Palette:
+def generate_palette(rng: np.random.Generator, style: str = "storybook") -> Palette:
     """Create an aesthetically pleasing palette based on style and RNG."""
     mode = rng.choice(
         ["monochromatic", "analogous", "complementary", "triadic", "artistic"],
@@ -79,13 +79,9 @@ def generate_palette(rng: np.random.Generator, style: str = "abstract") -> Palet
 
     # Style-biased lightness / saturation
     style_bias = {
-        "cosmic": (0.7, 0.45, 0.06),
-        "minimal": (0.25, 0.55, 0.82),
-        "organic": (0.55, 0.45, 0.15),
-        "digital": (0.8, 0.45, 0.05),
-        "abstract": (0.65, 0.5, 0.1),
-        "playful": (0.85, 0.62, 0.88),
-        "documentary": (0.75, 0.52, 0.05),
+        "storybook": (0.55, 0.58, 0.78),
+        "classroom": (0.35, 0.58, 0.72),
+        "pulse": (0.88, 0.48, 0.04),
     }
     sat, light, bg_l = style_bias.get(style, (0.65, 0.5, 0.1))
     sat = float(np.clip(sat + rng.uniform(-0.1, 0.1), 0.2, 0.98))

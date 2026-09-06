@@ -53,40 +53,13 @@ def kids_narration_lines(seg: dict) -> list[str]:
         lines.append(text[:160])
 
     kind = str(seg.get("kind") or "").lower()
-    word = str(seg.get("word") or "").strip()
-    letter = str(seg.get("letter") or "").strip()
 
-    if kind == "math" or seg.get("math_op"):
-        add(seg.get("voice_line"))
-        if not lines:
-            left = int(seg.get("math_left") or 1)
-            right = int(seg.get("math_right") or 1)
-            op = str(seg.get("math_op") or "+")
-            ans = int(seg.get("count") or (left + right if op != "-" else left - right))
-            add(f"{left} {'take away' if op == '-' else 'plus'} {right} is {ans}.")
-        add(seg.get("celebrate") or "You did the math! Great job!")
-        return lines[:2]
+    if kind == "story":
+        add(seg.get("voice_line") or seg.get("headline") or seg.get("body"))
+        return lines[:1]
 
-    if seg.get("complete_alphabet"):
-        add(seg.get("voice_line"))
-        if letter and letter.lower() not in " ".join(lines).lower():
-            add(f"This is the letter {letter}.")
-        if word and f"say {word.lower()}" not in " ".join(lines).lower():
-            add(f"Say {word.lower()}.")
-        return lines[:2]
-
-    if kind == "dictionary" or str(seg.get("spell_word") or "").strip():
-        add(seg.get("voice_line"))
-        add(seg.get("celebrate") or "Great job!")
-        return lines[:2]
-
-    add(seg.get("voice_line"))
-    if letter and letter.lower() not in " ".join(lines).lower():
-        add(f"This is the letter {letter}.")
-    if word and word.lower() not in " ".join(lines).lower():
-        add(f"Say {word.lower()} with me.")
-    add(seg.get("celebrate") or "Great job!")
-    return lines[:2]
+    add(seg.get("voice_line") or seg.get("headline") or seg.get("body"))
+    return lines[:1]
 
 
 def spell_aloud(word: str) -> str:

@@ -13,9 +13,12 @@ from app.art.palette import Palette, generate_palette
 from app.art.styles import list_styles, preferred_engines, sample_edit_look, sample_style_multiplier
 from app.utils.validation import parse_resolution
 
-# Random Engine (no explicit pick) uses these only. Education / ABC / explainer
-# run when the user chooses that engine, or a style that prefers them.
-VISUAL_ART_ENGINES = ("particles", "galaxy", "waves", "tunnel")
+# Engine owns the concept. Default style is the matching look for that concept.
+ENGINE_DEFAULT_STYLE = {
+    "kids_storybook": "storybook",
+    "how_it_works": "classroom",
+    "trend_brief": "pulse",
+}
 
 
 @dataclass
@@ -64,88 +67,18 @@ class ProjectSpec:
 
 # Per-engine parameter ranges (min, max) or discrete choices
 ENGINE_PARAM_SPECS: dict[str, dict[str, Any]] = {
-    "particles": {
-        "count": (200, 1200),
-        "size": (1.0, 5.0),
-        "speed": (0.3, 2.5),
-        "gravity": (-0.02, 0.05),
-        "turbulence": (0.0, 1.5),
-        "trail": (0.85, 0.98),
-        "attraction": (0.0, 0.8),
-    },
-    "galaxy": {
-        "star_count": (400, 2200),
-        "arm_count": (2, 6),
-        "spin": (0.1, 1.2),
-        "noise_strength": (0.1, 0.8),
-        "core_glow": (0.3, 1.0),
-        "drift": (0.05, 0.4),
-    },
-    "waves": {
-        "layers": (2, 7),
-        "frequency": (0.5, 3.0),
-        "amplitude": (0.05, 0.35),
-        "speed": (0.3, 1.8),
-        "distortion": (0.0, 0.8),
-    },
-    "tunnel": {
-        "rings": (12, 48),
-        "spokes": (8, 36),
-        "speed": (0.5, 2.5),
-        "twist": (0.0, 2.0),
-        "pulse": (0.2, 1.2),
-    },
-    "alphabet_cartoon": {
-        "mode": ["lesson", "lesson", "lesson", "spell", "focus", "chart"],
-        "lesson_theme": [
-            "letter_of_day", "letter_of_day",
-            "phonics", "phonics",
-            "dictionary", "dictionary",
-            "real_world_math", "real_world_math", "real_world_math",
-            "word_builder",
-            "animal_friends",
-            "count_fun",
-        ],
-        "columns": (5, 7),
-        "bounce": (0.18, 0.38),
-        "wobble": (0.04, 0.16),
-        "letter_scale": (0.16, 0.22),
-        "include_numbers": [False, False, True],
-        "show_motifs": [True, True, False],
-        "show_lowercase": [True, True, False],
-        "background": ["notebook", "sky", "pastel", "pastel"],
-        "sparkle": (0.06, 0.18),
-        "pop_in": [True],
+    "kids_storybook": {
         "show_word_images": [True, True, True],
+        "paper_warmth": (0.35, 0.90),
+        "page_turn": (0.4, 1.0),
     },
-    "hand_art": {
-        "doodle_count": (8, 22),
-        "stroke_width": (1, 4),
-        "sketchiness": (0.3, 1.0),
-        "paper_grain": (0.15, 0.55),
-        "margin_scribbles": [True, True, False],
-        "lesson_theme": ["draw_along", "sketch_practice", "doodle_story"],
-        "show_captions": [True, True, True],
-        "show_word_images": [True, True, True],
+    "how_it_works": {
+        "board": ["whiteboard", "whiteboard", "chalkboard"],
+        "diagram_speed": (0.5, 1.4),
     },
-    "kids_doodles": {
-        "shape_count": (4, 8),
-        "board_mode": ["colorful", "colorful", "chalkboard"],
-        "lesson_theme": [
-            "count_along", "real_world_math", "real_world_math",
-            "dictionary", "word_stickers",
-            "shape_fun", "color_rainbow",
-        ],
-        "show_captions": [True, True, True],
-        "show_word_images": [True, True, True],
-    },
-    "infographic_explainer": {
-        "domain": ["astronomy", "earth_science", "technology", "biology", "all"],
-        "hud_density": (0.5, 1.0),
-        "schematic_glow": (0.5, 1.0),
-        "diagram_speed": (0.6, 1.4),
-        "show_radar": [True, True, False],
-        "metric_counter_speed": (0.8, 1.5),
+    "trend_brief": {
+        "energy": (0.55, 1.20),
+        "ticker_speed": (0.45, 1.40),
     },
 }
 
@@ -181,16 +114,22 @@ class Randomizer:
         rng = np.random.default_rng(seed)
 
         style_chosen = style is not None
-        style_name = style or str(rng.choice(self.styles))
-        if engine:
+        engine_chosen = engine is not None
+
+        if engine_chosen and style_chosen:
             engine_name = engine
+            style_name = style
+        elif engine_chosen:
+            engine_name = engine
+            style_name = ENGINE_DEFAULT_STYLE.get(engine_name) or str(rng.choice(self.styles))
         elif style_chosen:
+            style_name = style
             preferred = preferred_engines(style_name)
             engine_pool = [e for e in (preferred or self.engines) if e in self.engines] or self.engines
             engine_name = str(rng.choice(engine_pool))
         else:
-            visual = [e for e in VISUAL_ART_ENGINES if e in self.engines] or self.engines
-            engine_name = str(rng.choice(visual))
+            engine_name = str(rng.choice(self.engines))
+            style_name = ENGINE_DEFAULT_STYLE.get(engine_name) or str(rng.choice(self.styles))
 
         if random_resolution or resolution in (None, "random", "Random"):
             res = str(rng.choice(self.config.get("resolutions", ["1920x1080"])))
@@ -266,8 +205,7 @@ class Randomizer:
     ) -> dict[str, Any]:
         specs = ENGINE_PARAM_SPECS.get(engine, {})
         params: dict[str, Any] = {}
-        density = multipliers.get("density", 0.6)
-        speed_m = multipliers.get("speed", 1.0)
+        del multipliers
 
         for key, spec in specs.items():
             if isinstance(spec, list):
@@ -279,26 +217,7 @@ class Randomizer:
                     params[key] = bool(params[key])
                 continue
             lo, hi = spec
-            # Bias density-related counts upward/downward
-            if key in {
-                "count",
-                "star_count",
-                "particle_count",
-                "shape_count",
-                "sites",
-                "line_count",
-                "rings",
-                "layers",
-            }:
-                mid = lo + (hi - lo) * density
-                span = (hi - lo) * 0.25
-                value = float(rng.uniform(max(lo, mid - span), min(hi, mid + span)))
-            elif key in {"speed", "spin", "zoom_speed", "rotation_speed", "z_speed", "drift"}:
-                mid = lo + (hi - lo) * min(1.0, speed_m / 1.5)
-                span = (hi - lo) * 0.3
-                value = float(rng.uniform(max(lo, mid - span), min(hi, mid + span)))
-            else:
-                value = float(rng.uniform(lo, hi))
+            value = float(rng.uniform(lo, hi))
 
             if isinstance(lo, int) and isinstance(hi, int):
                 params[key] = int(round(value))
@@ -307,7 +226,8 @@ class Randomizer:
         return params
 
 
-KIDS_ENGINES = frozenset({"alphabet_cartoon", "hand_art", "kids_doodles"})
+KIDS_ENGINES = frozenset({"kids_storybook"})
+TOPIC_BRIEF_ENGINES = frozenset({"how_it_works", "trend_brief"})
 
 
 def _edit_look(
@@ -316,10 +236,10 @@ def _edit_look(
     style: str,
     seed: int,
 ) -> dict[str, Any]:
-    """Kids engines lock to broadcast; every other pair uses the style's own edit."""
+    """Kids storybook uses the storybook edit; topic engines use the chosen style."""
     fx, fy = rule_of_thirds_focus(seed)
     if engine in KIDS_ENGINES:
-        look = sample_edit_look(rng, "playful")
+        look = sample_edit_look(rng, "storybook")
         look["focus_x"] = 0.5
         look["focus_y"] = 0.5
         look["camera_push"] = 0.0
@@ -328,6 +248,6 @@ def _edit_look(
     look = sample_edit_look(rng, style)
     look["focus_x"] = fx
     look["focus_y"] = fy
-    if engine == "infographic_explainer" and style not in {"documentary", "cosmic", "digital"}:
+    if engine == "how_it_works" and style != "classroom":
         look["edit_feel"] = "documentary"
     return look

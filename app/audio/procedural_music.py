@@ -106,16 +106,19 @@ def generate_procedural_audio(
     mode = str(rng.choice(["drone", "pad", "melody", "rhythm"], p=[0.25, 0.35, 0.25, 0.15]))
 
     # Style bias
-    if style in {"minimal", "organic"}:
-        mode = str(rng.choice(["drone", "pad"]))
-        osc_kind = "sine"
-    elif style in {"digital", "cosmic"}:
-        osc_kind = str(rng.choice(["saw", "square", "triangle"]))
-        mode = str(rng.choice(["melody", "rhythm", "pad"]))
-    elif style == "playful":
+    if style == "storybook":
         mode = str(rng.choice(["melody", "rhythm"]))
         if "tempo_bpm" not in profile:
-            tempo = float(rng.uniform(90, 130))
+            tempo = float(rng.uniform(76, 110))
+            beat = 60.0 / tempo
+    elif style == "classroom":
+        mode = str(rng.choice(["drone", "pad"]))
+        osc_kind = "sine"
+    elif style == "pulse":
+        osc_kind = str(rng.choice(["saw", "square", "triangle"]))
+        mode = str(rng.choice(["melody", "rhythm"]))
+        if "tempo_bpm" not in profile:
+            tempo = float(rng.uniform(118, 138))
             beat = 60.0 / tempo
 
     pad_amp = 0.10 + 0.10 * energy

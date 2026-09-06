@@ -1,4 +1,4 @@
-"""Offline word illustration pack for kids alphabet videos.
+"""Offline word illustration pack for kids storybook pages.
 
 Images are drawn locally with Pillow and cached under assets/education/words/.
 No internet download is required at any time.
@@ -11,9 +11,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from app.art.education_content import LETTER_WORDS, NUMBER_WORDS
 from app.art.fonts import load_font
 from app.utils.paths import project_root
+
+
+_ILLUSTRATION_REV = "r2"
 
 
 def word_image_dir() -> Path:
@@ -27,21 +29,14 @@ def _font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
 
 
 def _all_words() -> list[str]:
+    from app.art.storybook_content import STORIES
+
     words: set[str] = set()
-    for lst in LETTER_WORDS.values():
-        words.update(lst)
-    for lst in NUMBER_WORDS.values():
-        words.update(lst)
-    # Motif aliases used by lessons
-    words.update(
-        {
-            "STAR", "SUN", "MOON", "TREE", "HOUSE", "FISH", "CAT", "DOG", "BALL",
-            "APPLE", "RAINBOW", "UMBRELLA", "PENCIL", "ZEBRA", "BOX", "WAVE",
-            "HEART", "FRIEND", "SPIRAL", "X-RAY", "X-RAY FISH", "JAGUAR", "NEWT",
-            "QUAIL", "VULTURE", "IGUANA", "CLOUD",
-        }
-    )
-    return sorted(words)
+    for story in STORIES:
+        words.add(str(story.get("word") or "").upper())
+        for page in story.get("pages") or []:
+            words.add(str(page.get("word") or "").upper())
+    return sorted(w for w in words if w)
 
 
 def _palette_for(word: str) -> tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]]:
@@ -140,7 +135,7 @@ def _draw_scene(draw: ImageDraw.ImageDraw, word: str, w: int, h: int, main: tupl
         draw.ellipse((cx - s, cy - s // 2, cx + s // 2, cy + s // 2), fill=(80, 160, 255), outline=dark, width=3)
         draw.polygon([(cx + s // 2, cy), (cx + s, cy - s // 2), (cx + s, cy + s // 2)], fill=(60, 120, 220), outline=dark)
         circle(cx - s // 3, cy - s // 8, s // 10, fill=dark)
-    elif word in {"HOUSE", "SCHOOL", "DOOR", "IGLOO"}:
+    elif word in {"HOUSE", "SCHOOL", "DOOR", "IGLOO", "HOME"}:
         rect(cx - s, cy - s // 4, cx + s, cy + s, fill=(240, 210, 160))
         draw.polygon([(cx - s, cy - s // 4), (cx, cy - s), (cx + s, cy - s // 4)], fill=(200, 70, 70), outline=dark)
         rect(cx - s // 5, cy + s // 4, cx + s // 5, cy + s, fill=(120, 70, 30))
@@ -168,7 +163,7 @@ def _draw_scene(draw: ImageDraw.ImageDraw, word: str, w: int, h: int, main: tupl
     elif word in {"UMBRELLA", "HAT", "CROWN", "QUEEN"}:
         draw.pieslice((cx - s, cy - s // 2, cx + s, cy + s // 2), 180, 360, fill=(220, 60, 90), outline=dark)
         draw.line((cx, cy, cx, cy + s), fill=dark, width=5)
-    elif word in {"PENCIL", "BOOK", "LAMP", "KEY", "WATCH", "DRUM", "VIOLIN"}:
+    elif word in {"PENCIL", "BOOK", "LAMP", "KEY", "WATCH", "DRUM", "VIOLIN", "LIGHT"}:
         rect(cx - s // 3, cy - s, cx + s // 3, cy + s // 2, fill=(255, 210, 70))
         draw.polygon([(cx - s // 3, cy + s // 2), (cx, cy + s), (cx + s // 3, cy + s // 2)], fill=(240, 200, 150), outline=dark)
     elif word == "XYLOPHONE":
@@ -211,9 +206,53 @@ def _draw_scene(draw: ImageDraw.ImageDraw, word: str, w: int, h: int, main: tupl
             y = -(13 * math.cos(v) - 5 * math.cos(2 * v) - 2 * math.cos(3 * v) - math.cos(4 * v))
             pts.append((cx + x * s / 16, cy + y * s / 16))
         draw.polygon(pts, fill=(230, 60, 90), outline=(150, 30, 50))
-    elif word in {"CLOUD", "WATER", "WAVE", "OCEAN", "ICE", "SNOW"}:
+    elif word in {"CLOUD", "WATER", "WAVE", "OCEAN", "ICE", "SNOW", "SKY", "RAIN"}:
         for ox, oy, r in ((-s // 2, 0, s // 2), (0, -s // 4, int(s * 0.6)), (s // 2, 0, s // 2)):
             circle(cx + ox, cy + oy, r, fill=(230, 240, 255), outline=(140, 170, 210))
+        if word == "RAIN":
+            for ox, oy in ((-s // 3, s // 2), (0, int(s * 0.7)), (s // 3, s // 2), (-s // 8, int(s * 0.9))):
+                draw.line((cx + ox, cy + oy, cx + ox - 4, cy + oy + s // 3), fill=(90, 140, 210), width=4)
+    elif word == "SEED":
+        draw.ellipse((cx - s // 2, cy - s // 3, cx + s // 2, cy + s // 3), fill=(140, 90, 40), outline=dark, width=3)
+        rect(cx - s, cy + s // 2, cx + s, cy + int(s * 0.85), fill=(110, 80, 45))
+    elif word == "BALLOON":
+        circle(cx, cy - s // 6, int(s * 0.85), fill=(230, 50, 70))
+        draw.polygon([(cx - 8, cy + int(s * 0.6)), (cx + 8, cy + int(s * 0.6)), (cx, cy + int(s * 0.8))], fill=(200, 40, 55))
+        draw.line((cx, cy + int(s * 0.8), cx, cy + int(s * 1.4)), fill=dark, width=3)
+    elif word == "WIND":
+        for i, yoff in enumerate((-s // 3, 0, s // 3)):
+            y = cy + yoff
+            draw.arc((cx - s, y - 18, cx + s, y + 18), 200, 340, fill=(140, 180, 220), width=5)
+    elif word == "BEE":
+        circle(cx, cy, int(s * 0.55), fill=(250, 210, 50))
+        draw.ellipse((cx - int(s * 0.9), cy - s // 5, cx - s // 6, cy + s // 5), fill=(240, 248, 255), outline=(180, 200, 220))
+        for i in range(-1, 2):
+            draw.line((cx + i * s // 5, cy - s // 3, cx + i * s // 5, cy + s // 3), fill=(40, 30, 20), width=4)
+    elif word in {"GOLD", "HONEY"}:
+        fill = (240, 180, 40) if word == "GOLD" else (230, 160, 40)
+        circle(cx, cy, int(s * 0.7), fill=fill)
+        if word == "HONEY":
+            rect(cx - s // 2, cy - s // 8, cx + s // 2, cy + s, fill=(210, 140, 30))
+    elif word == "SHELL":
+        draw.pieslice((cx - s, cy - s, cx + s, cy + s), 200, 340, fill=(250, 220, 180), outline=dark)
+        draw.arc((cx - s // 2, cy - s // 3, cx + s // 2, cy + s // 2), 200, 340, fill=dark, width=3)
+    elif word == "CRAB":
+        circle(cx, cy, int(s * 0.55), fill=(220, 70, 50))
+        draw.arc((cx - int(s * 1.1), cy - s // 2, cx - s // 6, cy + s // 3), 200, 20, fill=(200, 50, 40), width=6)
+        draw.arc((cx + s // 6, cy - s // 2, cx + int(s * 1.1), cy + s // 3), 160, 340, fill=(200, 50, 40), width=6)
+        circle(cx - s // 5, cy - s // 8, s // 10, fill=dark)
+        circle(cx + s // 5, cy - s // 8, s // 10, fill=dark)
+    elif word in {"NIGHT", "BED"}:
+        circle(cx + s // 6, cy - s // 6, int(s * 0.7), fill=(240, 230, 160))
+        circle(cx, cy - s // 4, int(s * 0.55), fill=(40, 50, 90) if word == "NIGHT" else (242, 228, 204))
+        if word == "BED":
+            rect(cx - s, cy + s // 5, cx + s, cy + s, fill=(120, 80, 160))
+            rect(cx - s, cy, cx - s // 3, cy + s // 5, fill=(200, 80, 110))
+    elif word in {"SHOE", "FOOT"}:
+        draw.ellipse((cx - s, cy - s // 5, cx + s // 3, cy + s // 2), fill=(80, 70, 90), outline=dark, width=3)
+        rect(cx - s // 3, cy - s // 2, cx + s // 2, cy + s // 4, fill=(90, 80, 100), outline=dark)
+    elif word == "PATH":
+        draw.polygon([(cx - s, cy + s), (cx - s // 3, cy - s), (cx + s // 3, cy - s), (cx + s, cy + s)], fill=(200, 170, 110), outline=dark)
     elif word in {"EGG", "CAKE", "PIZZA", "MILK", "JUICE", "JAM"}:
         circle(cx, cy, int(s * 0.7), fill=(255, 245, 210))
         if word == "CAKE":
@@ -260,7 +299,7 @@ def render_word_image(word: str, size: int = 512) -> Image.Image:
 def ensure_word_image(word: str, size: int = 512) -> Path:
     """Generate and cache a PNG for the word if missing. Fully offline."""
     word = word.upper().strip()
-    path = word_image_dir() / f"{word}.png"
+    path = word_image_dir() / f"{word}.{_ILLUSTRATION_REV}.png"
     if path.exists() and path.stat().st_size > 100:
         return path
     img = render_word_image(word, size=size)

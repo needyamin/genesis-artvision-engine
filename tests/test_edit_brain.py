@@ -13,33 +13,9 @@ sys.path.insert(0, str(ROOT))
 from app.art.edit_brain import (
     beat_pulse,
     director_time,
-    documentary_shot,
     fade_alpha,
-    kids_shot,
 )
 from app.video.effects import apply_editorial_finish, apply_grade
-
-
-def test_kids_shot_holds_the_letter_before_the_picture():
-    early = kids_shot(0.12)
-    hold = kids_shot(0.35)
-    pic = kids_shot(0.58)
-    rest = kids_shot(0.75)
-    assert early.letter_scale > 0.3
-    assert early.picture_scale < 0.05
-    assert hold.letter_scale == 1.0
-    assert hold.hold_still
-    assert hold.picture_scale < 0.05
-    assert hold.bounce == 0.0
-    assert pic.picture_scale > 0.4
-    assert rest.letter_scale == 1.0
-    assert rest.picture_scale == 1.0
-    assert rest.hold_still
-
-
-def test_kids_shot_caption_waits_for_the_letter():
-    assert kids_shot(0.10).caption_alpha < 0.2
-    assert kids_shot(0.40).caption_alpha > 0.9
 
 
 def test_director_time_is_linear_for_kids_audio_sync():
@@ -48,13 +24,6 @@ def test_director_time_is_linear_for_kids_audio_sync():
         assert director_time(t, "linear") == t
     mid = director_time(0.5, "cinematic")
     assert 0.45 <= mid <= 0.55
-
-
-def test_documentary_shot_holds_then_exits():
-    shot = documentary_shot(0.6)
-    assert shot.hold
-    assert shot.entry > 0.9
-    assert documentary_shot(0.97).exit < 0.5
 
 
 def test_fade_alpha_opens_and_closes():

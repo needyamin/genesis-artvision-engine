@@ -7,10 +7,9 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from app.art.education_content import KIDS_EDUCATION_ENGINES
-from app.core.randomizer import ENGINE_PARAM_SPECS, VISUAL_ART_ENGINES
+from app.core.randomizer import ENGINE_PARAM_SPECS, KIDS_ENGINES, TOPIC_BRIEF_ENGINES
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _JSON_FENCE = re.compile(r"```(?:json)?\s*([\s\S]*?)```", re.IGNORECASE)
 
@@ -56,6 +55,7 @@ class CreativeDirection:
     audio_profile: dict[str, Any] = field(default_factory=dict)
     visual_beats: list[dict[str, Any]] = field(default_factory=list)
     title: str | None = None
+    metrics: list[dict[str, str]] = field(default_factory=list)
     notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -88,6 +88,7 @@ class CreativeDirection:
             audio_profile=dict(data.get("audio_profile") or {}),
             visual_beats=_seg_list(data.get("visual_beats") or data.get("beats")),
             title=_opt_str(data.get("title")),
+            metrics=_metric_list(data.get("metrics")),
             notes=str(data.get("notes") or ""),
         )
 
@@ -135,6 +136,7 @@ def parse_creative_direction(
     direction.segment_plan = [dict(b) for b in merged]
     if direction.title:
         direction.title = direction.title[:48]
+    direction.metrics = _metric_list(direction.metrics)
     direction.glow = _clamp_opt(direction.glow, 0.0, 1.0)
     direction.blur = _clamp_opt(direction.blur, 0.0, 1.5)
     direction.contrast = _clamp_opt(direction.contrast, 0.5, 1.5)
@@ -166,7 +168,13 @@ def sanitize_direction_for_engine(direction: CreativeDirection, engine: str) -> 
     Procedural art and the science explainer must not receive article cards,
     titles, or extra pictures — those engines paint the whole frame.
     """
-    if engine in KIDS_EDUCATION_ENGINES:
+    if engine in KIDS_ENGINES:
+        direction.focus_letters = []
+        return direction
+    if engine in TOPIC_BRIEF_ENGINES:
+        direction.lesson_theme = None
+        direction.focus_letters = []
+        direction.focus_words = []
         return direction
     direction.lesson_theme = None
     direction.focus_letters = []
@@ -175,16 +183,10 @@ def sanitize_direction_for_engine(direction: CreativeDirection, engine: str) -> 
     direction.title = None
     direction.visual_beats = []
     direction.segment_plan = []
-    if engine != "infographic_explainer":
-        direction.fun_facts = []
-        direction.segment_weights = []
-    else:
-        direction.segment_weights = []
-    profile = dict(direction.audio_profile or {})
-    if engine in VISUAL_ART_ENGINES:
-        profile.pop("voice_rate", None)
-        profile.pop("voice_pitch", None)
-    direction.audio_profile = profile
+    direction.metrics = []
+    direction.fun_facts = []
+    direction.segment_weights = []
+    direction.audio_profile = dict(direction.audio_profile or {})
     return direction
 
 
@@ -230,6 +232,10 @@ _BEAT_STR_KEYS = (
     "overlay_text",
     "caption",
     "title",
+    "headline",
+    "body",
+    "phase",
+    "data_point",
     "shape",
     "motif",
     "image_path",
@@ -240,6 +246,10 @@ _BEAT_STR_LIMITS = {
     "overlay_text": 48,
     "caption": 72,
     "title": 48,
+    "headline": 48,
+    "body": 140,
+    "phase": 24,
+    "data_point": 48,
     "voice_line": 160,
     "fact": 120,
     "line": 64,
@@ -331,6 +341,22 @@ def clamp_audio_profile(raw: Any) -> dict[str, Any]:
     pitch = _clamp_opt(raw.get("voice_pitch"), 0.7, 1.5)
     if pitch is not None:
         out["voice_pitch"] = pitch
+    return out
+
+
+def _metric_list(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in value[:6]:
+        if isinstance(item, dict):
+            label = str(item.get("label") or "").strip()[:32]
+            val = str(item.get("val") or item.get("value") or "").strip()[:24]
+            unit = str(item.get("unit") or "").strip()[:32]
+            if label or val:
+                out.append({"label": label, "val": val, "unit": unit})
+        elif isinstance(item, str) and item.strip():
+            out.append({"label": item.strip()[:32], "val": "", "unit": ""})
     return out
 
 

@@ -21,8 +21,8 @@ def test_database_insert_and_list(tmp_path: Path):
         width=320,
         height=180,
         fps=10,
-        engine="particles",
-        style="cosmic",
+        engine="trend_brief",
+        style="pulse",
         params_json="{}",
         output_path=str(tmp_path / "a.mp4"),
         thumbnail_path=None,
@@ -35,4 +35,4 @@ def test_database_insert_and_list(tmp_path: Path):
     assert rows[0].seed == 42
     found = db.get_by_seed(42)
     assert found is not None
-    assert found.engine == "particles"
+    assert found.engine == "trend_brief"

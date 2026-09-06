@@ -30,14 +30,6 @@ _COMIC_FONT_CANDIDATES = (
 _FONT_CANDIDATES = _MODERN_FONT_CANDIDATES + _COMIC_FONT_CANDIDATES
 
 
-def usable_caption(value: object, fallback: str = "") -> str:
-    """Drop empty or punctuation-only AI captions such as a lone '.'."""
-    text = " ".join(str(value or "").split())
-    if not text or not any(ch.isalnum() for ch in text):
-        return fallback
-    return text
-
-
 def load_font(size: int, family: str = "modern") -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
     """Load a real TTF so captions are readable. Modern clean sans-serif by default."""
     size = max(12, int(size))

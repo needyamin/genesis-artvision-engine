@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from app.art.education_content import KIDS_EDUCATION_ENGINES, build_lesson_for_engine
+from app.art.storybook_content import build_storybook_lesson
 from app.audio.kids_education import generate_kids_education_audio
 from app.audio.procedural_music import generate_procedural_audio, write_wav
+from app.core.randomizer import KIDS_ENGINES, TOPIC_BRIEF_ENGINES
 from app.utils.logger import get_logger
 from app.utils.paths import project_root
 
@@ -34,36 +35,36 @@ class AudioGenerator:
         """
         Generate a WAV file. Returns path on success, None on failure.
 
-        For alphabet educational videos, builds a kids learning soundtrack
-        synced to the lesson segments.
+        For kids storybook videos, builds a soundtrack synced to story pages.
         """
         try:
             params = params or {}
             profile = params.get("audio_profile") if isinstance(params.get("audio_profile"), dict) else {}
-            if engine == "infographic_explainer" or params.get("topic_data"):
+            if engine in KIDS_ENGINES:
+                lesson = params.get("education_lesson")
+                if not isinstance(lesson, dict):
+                    lesson = build_storybook_lesson(seed, duration, params=params)
+                samples = generate_kids_education_audio(
+                    duration,
+                    seed,
+                    lesson,
+                    sample_rate=self.sample_rate,
+                    audio_profile=profile,
+                )
+            elif engine in TOPIC_BRIEF_ENGINES:
                 topic_data = params.get("topic_data")
                 if not isinstance(topic_data, dict):
-                    from app.art.knowledge_content import build_knowledge_topic
-                    topic_data = build_knowledge_topic(seed, duration, params=params)
+                    if engine == "how_it_works":
+                        from app.art.how_it_works_content import build_how_it_works_topic
+                        topic_data = build_how_it_works_topic(seed, duration, params=params)
+                    else:
+                        from app.art.trend_content import build_trend_topic
+                        topic_data = build_trend_topic(seed, duration, params=params)
                 from app.audio.documentary_soundtrack import generate_documentary_audio
                 samples = generate_documentary_audio(
                     duration,
                     seed,
                     topic_data,
-                    sample_rate=self.sample_rate,
-                    audio_profile=profile,
-                )
-            elif engine in KIDS_EDUCATION_ENGINES or params.get("education_lesson"):
-                lesson = params.get("education_lesson")
-                if not isinstance(lesson, dict):
-                    lesson = build_lesson_for_engine(engine or "", seed, duration, params=params)
-                if not isinstance(lesson, dict):
-                    from app.art.education_content import build_education_lesson
-                    lesson = build_education_lesson(seed, duration, params=params)
-                samples = generate_kids_education_audio(
-                    duration,
-                    seed,
-                    lesson,
                     sample_rate=self.sample_rate,
                     audio_profile=profile,
                 )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from app.art.education_content import KIDS_EDUCATION_ENGINES
+from app.core.randomizer import KIDS_ENGINES
 from app.art.offline_illustrator import ensure_brief_image, parse_image_brief
 from app.utils.logger import get_logger
 
@@ -71,7 +71,7 @@ def realize_visual_assets(
     Runs on the worker thread. Emits per-beat GUI progress; does not block Qt.
     """
     params = spec.params or {}
-    if getattr(spec, "engine", "") not in KIDS_EDUCATION_ENGINES:
+    if getattr(spec, "engine", "") not in KIDS_ENGINES:
         return spec
     if not (
         params.get("ai_applied")

@@ -116,14 +116,9 @@ def ensure_engines_loaded() -> None:
     if _LOADED:
         return
     from app.art import (  # noqa: F401
-        alphabet_cartoon,
-        galaxy,
-        hand_art,
-        infographic_explainer,
-        kids_doodles,
-        particles,
-        tunnel,
-        waves,
+        how_it_works,
+        kids_storybook,
+        trend_brief,
     )
 
     _LOADED = True

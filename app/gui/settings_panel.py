@@ -29,24 +29,15 @@ RESOLUTION_LABELS: dict[str, str] = {
 }
 
 ENGINE_LABELS: dict[str, str] = {
-    "particles": "Particle Universe",
-    "galaxy": "Galaxy / Starfield",
-    "waves": "Waves / Liquid",
-    "tunnel": "Tunnel",
-    "alphabet_cartoon": "ABC Educational",
-    "hand_art": "Draw Along",
-    "kids_doodles": "Shapes & Colors",
-    "infographic_explainer": "Science Explainer",
+    "kids_storybook": "Kids Storybook",
+    "how_it_works": "How It Works",
+    "trend_brief": "Trending Brief",
 }
 
 STYLE_LABELS: dict[str, str] = {
-    "abstract": "Abstract",
-    "cosmic": "Cosmic",
-    "minimal": "Minimal",
-    "organic": "Organic",
-    "digital": "Digital",
-    "playful": "Playful",
-    "documentary": "Documentary",
+    "storybook": "Storybook",
+    "classroom": "Classroom",
+    "pulse": "Pulse",
 }
 
 
@@ -144,8 +135,7 @@ class SettingsPanel(QWidget):
         for eng in self.config.get("engines", []):
             self.art_mode.addItem(engine_label(str(eng)), userData=str(eng))
         self.art_mode.setToolTip(
-            "What to generate. Random uses visual art only. "
-            "Pick ABC, Draw Along, Shapes & Colors, or Science Explainer for those lessons."
+            "What to generate. Random picks among Kids Storybook, How It Works, and Trending Brief."
         )
         self.art_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 

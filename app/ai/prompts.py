@@ -5,107 +5,68 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.art.education_content import KIDS_EDUCATION_ENGINES
 from app.art.styles import STYLE_EDIT, STYLE_PROFILES
-from app.core.randomizer import ENGINE_PARAM_SPECS, VISUAL_ART_ENGINES
+from app.core.randomizer import ENGINE_PARAM_SPECS, KIDS_ENGINES, TOPIC_BRIEF_ENGINES
 
 SYSTEM_ADVISOR = """You are a creative director for Genesis Artvision Engine, an OFFLINE procedural art video factory.
 Return ONLY a JSON object (no markdown). Never invent image URLs or external assets.
 Direct the given Engine + Style pair. Never change the engine. Never change the style.
 Engine paints the entire frame. Style only changes look: palette, glow, speed, grade, audio mood.
-For procedural art engines, NEVER add titles, captions, article cards, headlines, or extra pictures.
 Unknown keys will be dropped. Numeric params must stay inside the provided ranges."""
 
 ENGINE_GUIDES: dict[str, str] = {
-    "particles": (
-        "Particle Universe: the video IS moving particles (trails, gravity, turbulence). "
-        "Only tune count, size, speed, trail, attraction, glow. Do not add titles or pictures."
+    "kids_storybook": (
+        "Kids Storybook: a short picture-book story for ages 3–7 (animals, weather, friendship). "
+        "Return a story title, 4–6 page beats, voice lines, and simple picture words. "
+        "Do not turn this into an A–Z alphabet lesson."
     ),
-    "galaxy": (
-        "Galaxy / Starfield: the video IS a procedural spiral galaxy. "
-        "Only tune star_count, arm_count, spin, core_glow, drift. Do not add titles or pictures."
+    "how_it_works": (
+        "How It Works: everyday education (water cycle, heartbeat, electricity, rainbow). "
+        "Return an informative process: title, hook, 4–6 step beats, voice lines, metrics. "
+        "The engine draws its own classroom diagrams."
     ),
-    "waves": (
-        "Waves / Liquid: the video IS layered liquid interference. "
-        "Only tune layers, frequency, amplitude, speed, distortion. Do not add titles or pictures."
-    ),
-    "tunnel": (
-        "Tunnel: the video IS rings and spokes rushing toward the camera. "
-        "Only tune rings, spokes, speed, twist, pulse. Do not add titles or pictures."
-    ),
-    "alphabet_cartoon": (
-        "ABC Educational: kids letter/word/math lesson (age 3–7). "
-        "Each beat is a letter, a real word, or a tiny add/take-away story."
-    ),
-    "hand_art": (
-        "Draw Along: kids follow a simple drawing (house, sun, tree, cat). "
-        "Teach the doodle on screen. Do not turn this into a full A–Z alphabet video."
-    ),
-    "kids_doodles": (
-        "Shapes & Colors: kids learn shapes, colors, counting, or a simple word sticker. "
-        "Teach what is drawn. Do not turn this into a full A–Z alphabet video."
-    ),
-    "infographic_explainer": (
-        "Science Explainer: the engine already draws a documentary HUD and diagrams. "
-        "Tune domain, hud_density, schematic_glow. Suggest fun_facts only. "
-        "Do not add extra title cards or pictures on top."
+    "trend_brief": (
+        "Trending Brief: a short kinetic-type video about a CURRENTLY TRENDING internet topic "
+        "(this week's viral tech, culture, science, or news-of-the-week). "
+        "Name a real-feeling current-web topic. Return title, hook, 4–6 fact beats, voice lines. "
+        "This engine paints the brief itself."
     ),
 }
 
 STYLE_GUIDES: dict[str, str] = {
-    "abstract": "Abstract: mixed geometry, medium glow, neither cute nor documentary.",
-    "cosmic": "Cosmic: deep space palette, slow drift, high glow, cinematic grade.",
-    "minimal": "Minimal: sparse, soft, slow, low grain, lots of quiet space.",
-    "organic": "Organic: nature, fluid, earth and plant tones, gentle motion.",
-    "digital": "Digital: neon, fast, crisp, extra contrast and chroma.",
-    "playful": (
-        "Playful: bright friendly colors and bouncy motion. "
-        "If the engine is not a kids engine, apply only this LOOK — no alphabet or classroom content."
-    ),
-    "documentary": (
-        "Documentary: restrained HUD energy, factual titles, cinematic grade. "
-        "If the engine is not the science explainer, apply only this LOOK — do not invent a lecture."
-    ),
+    "storybook": "Storybook: warm paper, soft grade, slow page pacing.",
+    "classroom": "Classroom: clean board, medium contrast, calm diagrams.",
+    "pulse": "Pulse: fast, punchy, high energy, neon accents.",
 }
 
-_ABC_RULES = """Kids content must be age 3–7, slow, clear, and positive.
-1) Letter lessons: each beat is ONE letter and a word that STARTS with that letter.
-   overlay_text like "S is for SUN". NEVER join first letters into a fake word like "SABP".
-2) Spell / dictionary: pick ONE real kid word (SUN, CAT, FISH, APPLE). Spell it out loud.
-3) Math: tiny add/take-away stories. overlay_text like "2 + 1 = 3". Never abstract algebra.
-4) Spell-letter: pick ONE real kid word. Every beat is the next letter of THAT SAME word.
-   focus_words must be a single-item list like ["SUN"].
-If Current params mode is spell, you MUST pick one real spellable kid word and make every visual_beat a letter of that word in order."""
+_KIDS_STORY_RULES = """Kids story must be age 3–7, slow, kind, and concrete.
+Return a short picture-book: title, 4–6 page beats, voice lines, and one simple noun per page.
+Each visual_beat is one page: overlay_text (headline), caption (body), voice_line, word (picture noun), image_brief.
+Do not turn this into a full alphabet A–Z lesson."""
 
-_KIDS_OTHER_RULES = """Kids content must be age 3–7, slow, clear, and positive.
-Keep voice lines short. Teach the shape, color, or drawing on screen.
-Do not turn this into a full alphabet A–Z lesson unless a letter is already in Current params."""
+_HOW_IT_WORKS_RULES = """Return an everyday how-it-works process (water cycle, heart, electricity, rainbow, plants).
+JSON: title, fun_facts (hook first), voice_lines, metrics [{label, val, unit}], visual_beats as STEPS.
+Each visual_beat: phase, overlay_text (headline), caption (body), fact (data_point), voice_line.
+The engine draws classroom diagrams."""
 
-_INFOGRAPHIC_RULES = """The explainer engine already paints HUD cards.
-Suggest fun_facts and engine params only.
-Do NOT set visual_beats, title, overlay_text, image_brief, or captions.
-No alphabet drills or 'A is for' lines."""
+_TREND_RULES = """Pick a CURRENTLY TRENDING internet topic from this week (viral tech, culture, science, or news).
+JSON: title, fun_facts (hook first), voice_lines, metrics [{label, val, unit}], visual_beats as 4–6 fact beats.
+Each visual_beat: phase (HOOK/WHY/CATCH/NEXT), overlay_text, caption, fact, voice_line.
+This engine draws the brief."""
 
-_VISUAL_RULES = """This is abstract procedural art. The engine paints every pixel.
-Do NOT set lesson_theme, focus_letters, focus_words, voice_lines, fun_facts,
-visual_beats, title, overlay_text, captions, or image_brief.
-Do not invent articles, headlines, or sticker pictures.
-Only return param_overrides, glow, blur, contrast, animation_speed, easing,
-camera_feel, grade, palette_colors, audio_profile, and notes."""
-
-SYSTEM_CURATE = """You expand offline kids education catalogs for an alphabet learning video app.
+SYSTEM_CURATE = """You expand offline kids story catalogs for a picture-book video app.
 Return ONLY a JSON object (no markdown). Content must be age 3–7 friendly.
 Words should be simple nouns kids know. Facts and voice lines must be short (under 12 words when possible)."""
 
 
 def _engine_rules(engine: str) -> str:
-    if engine == "alphabet_cartoon":
-        return _ABC_RULES
-    if engine in KIDS_EDUCATION_ENGINES:
-        return _KIDS_OTHER_RULES
-    if engine == "infographic_explainer":
-        return _INFOGRAPHIC_RULES
-    return _VISUAL_RULES
+    if engine == "kids_storybook":
+        return _KIDS_STORY_RULES
+    if engine == "how_it_works":
+        return _HOW_IT_WORKS_RULES
+    if engine == "trend_brief":
+        return _TREND_RULES
+    return _KIDS_STORY_RULES
 
 
 def _style_look_hint(style: str) -> str:
@@ -149,50 +110,53 @@ def _schema_for_engine(engine: str, style: str) -> dict[str, Any]:
         },
         "notes": "optional short note shown in the GUI",
     }
-    if engine == "alphabet_cartoon":
-        schema["lesson_theme"] = "optional theme for this ABC lesson"
-        schema["focus_letters"] = "optional list of single letters"
-        schema["focus_words"] = "optional list of uppercase words"
-        schema["voice_lines"] = "optional short narration lines"
-        schema["fun_facts"] = "optional short kid facts"
-        schema["segment_weights"] = "optional list of positive floats for uneven lesson timing"
+    if engine == "kids_storybook":
+        schema["title"] = "short picture-book title"
+        schema["focus_words"] = "optional picture nouns, e.g. CAT, RAIN"
+        schema["voice_lines"] = "one short line per page"
         schema["visual_beats"] = [
             {
-                "image_brief": "matching picture for the letter-word already in the lesson",
-                "word": "APPLE",
-                "letter": "A",
-                "voice_line": "A is for apple",
-            }
-        ]
-        schema["audio_profile"]["voice_rate"] = "0.78-0.94 for kids (clear, not sluggish)"
-        schema["audio_profile"]["voice_pitch"] = "0.7-1.5"
-    elif engine == "kids_doodles":
-        schema["lesson_theme"] = "shape_fun | color_rainbow | count_along | real_world_math | dictionary"
-        schema["voice_lines"] = "optional short narration lines about the shape or color"
-        schema["visual_beats"] = [
-            {
-                "image_brief": "a big yellow circle like a sun on paper",
-                "shape": "circle",
-                "voice_line": "This is a circle. It is round.",
+                "overlay_text": "Meet Luna",
+                "caption": "Luna is a soft orange cat.",
+                "word": "CAT",
+                "voice_line": "This is Luna. Luna is a friendly orange cat.",
+                "image_brief": "a friendly orange cat in a picture book",
             }
         ]
         schema["audio_profile"]["voice_rate"] = "0.78-0.94"
         schema["audio_profile"]["voice_pitch"] = "0.7-1.5"
-    elif engine == "hand_art":
-        schema["lesson_theme"] = "draw_along | sketch_practice | doodle_story"
-        schema["focus_words"] = "optional simple things to draw, e.g. HOUSE"
-        schema["voice_lines"] = "optional short draw-along lines"
+    elif engine == "how_it_works":
+        schema["title"] = "process title, e.g. The Water Cycle"
+        schema["fun_facts"] = "hook first, then short facts"
+        schema["voice_lines"] = "one calm line per step"
+        schema["metrics"] = [{"label": "Ocean water", "val": "97%", "unit": "of Earth's water"}]
         schema["visual_beats"] = [
             {
-                "image_brief": "a simple house doodle with a triangle roof",
-                "word": "HOUSE",
-                "voice_line": "Let's draw a house together.",
+                "phase": "EVAPORATE",
+                "overlay_text": "Sun lifts the water",
+                "caption": "Heat turns ocean water into vapor.",
+                "fact": "Liquid → vapor",
+                "voice_line": "The sun warms lakes and oceans, and water rises as vapor.",
             }
         ]
-        schema["audio_profile"]["voice_rate"] = "0.78-0.94"
-        schema["audio_profile"]["voice_pitch"] = "0.7-1.5"
-    elif engine == "infographic_explainer":
-        schema["fun_facts"] = "optional short science facts"
+        schema["audio_profile"]["voice_rate"] = "0.82-1.0"
+        schema["audio_profile"]["voice_pitch"] = "0.85-1.1"
+    elif engine == "trend_brief":
+        schema["title"] = "currently trending internet topic title"
+        schema["fun_facts"] = "hook first: why this is trending now"
+        schema["voice_lines"] = "one punchy line per beat"
+        schema["metrics"] = [{"label": "Signal", "val": "viral", "unit": "this week"}]
+        schema["visual_beats"] = [
+            {
+                "phase": "HOOK",
+                "overlay_text": "Why it is everywhere",
+                "caption": "One-sentence current context.",
+                "fact": "This week",
+                "voice_line": "Here is the trend people are talking about this week.",
+            }
+        ]
+        schema["audio_profile"]["voice_rate"] = "0.88-1.08"
+        schema["audio_profile"]["voice_pitch"] = "0.9-1.15"
     return schema
 
 
@@ -218,26 +182,27 @@ def advisor_user_prompt(
         f"LOCKED combination: Engine={engine} + Style={style}.\n"
         "Do not switch to another engine or style. Direct THIS pair only."
     )
-    if engine in VISUAL_ART_ENGINES:
+    if engine == "trend_brief":
         combo += (
-            " Suggest look, motion, palette, and audio only. "
-            "No titles, captions, article cards, or extra pictures."
+            " Pick a currently trending internet topic (this week's viral tech/culture/science/news). "
+            "Return structured topic JSON this engine will draw."
         )
-    elif engine == "infographic_explainer":
-        combo += " Suggest facts and HUD params. No extra pictures or title stickers."
+    elif engine == "how_it_works":
+        combo += " Return an informative how-it-works process JSON this engine will draw as classroom diagrams."
     else:
-        combo += " Suggest lesson theme, voice, and matching picture briefs. The engine already draws the lesson cards."
-    if engine in VISUAL_ART_ENGINES and style == "playful":
-        combo += " Playful look only — still no letters or lessons."
-    if engine in KIDS_EDUCATION_ENGINES and style != "playful":
-        combo += f" Keep the kids lesson of {engine}; dress it in {style} color and motion."
-    if engine == "infographic_explainer" and style != "documentary":
-        combo += f" Keep the science explainer; dress it in {style} color and motion."
-    closing = (
-        "Tune param_overrides and look knobs only. Do not return visual_beats or title."
-        if engine not in KIDS_EDUCATION_ENGINES
-        else "Optional visual_beats may include image_brief matching the lesson word. Do not invent a separate article overlay."
-    )
+        combo += " Suggest story title, voice, and matching picture briefs. The engine already draws the story pages."
+    if engine in KIDS_ENGINES and style != "storybook":
+        combo += f" Keep the kids story of {engine}; dress it in {style} color and motion."
+    if engine == "how_it_works" and style != "classroom":
+        combo += f" Keep the how-it-works lesson; dress it in {style} color and motion."
+    if engine == "trend_brief" and style != "pulse":
+        combo += f" Keep the trending brief; dress it in {style} color and motion."
+    if engine in KIDS_ENGINES:
+        closing = "Optional visual_beats may include image_brief matching the story word."
+    elif engine in TOPIC_BRIEF_ENGINES:
+        closing = "Return title, fun_facts, voice_lines, metrics, and visual_beats. This engine paints those fields."
+    else:
+        closing = "Return title, voice_lines, and visual_beats this engine will paint."
     return (
         f"Seed: {seed}\n"
         f"{combo}\n"

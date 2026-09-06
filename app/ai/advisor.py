@@ -7,12 +7,10 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
-import numpy as np
-
 from app.ai.client import AIClientError, chat_completion, has_api_key
 from app.ai.prompts import SYSTEM_ADVISOR, advisor_user_prompt
 from app.ai.schemas import SCHEMA_VERSION, CreativeDirection, parse_creative_direction
-from app.art.education_content import KIDS_EDUCATION_ENGINES
+from app.core.randomizer import KIDS_ENGINES, TOPIC_BRIEF_ENGINES
 from app.utils.logger import get_logger
 from app.utils.paths import resolve_path
 
@@ -251,13 +249,13 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
         if value is not None:
             spec.params[key] = value
 
-    kids = locked_engine in KIDS_EDUCATION_ENGINES
-    explainer = locked_engine == "infographic_explainer"
+    kids = locked_engine in KIDS_ENGINES
+    topic_brief = locked_engine in TOPIC_BRIEF_ENGINES
     if kids:
+        spec.params.pop("topic_data", None)
+        spec.params.pop("focus_letters", None)
         if direction.lesson_theme:
             spec.params["lesson_theme"] = direction.lesson_theme
-        if locked_engine == "alphabet_cartoon" and direction.focus_letters:
-            spec.params["focus_letters"] = list(direction.focus_letters)
         if direction.focus_words:
             spec.params["focus_words"] = list(direction.focus_words)
         if direction.voice_lines:
@@ -274,24 +272,28 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
                 spec.params["ai_segment_plan"] = list(direction.visual_beats)
         if direction.title:
             spec.params["ai_title"] = direction.title
-    elif explainer:
+    elif topic_brief:
+        spec.params.pop("education_lesson", None)
+        if direction.title:
+            spec.params["ai_title"] = direction.title
+        if direction.voice_lines:
+            spec.params["ai_voice_lines"] = list(direction.voice_lines)
         if direction.fun_facts:
             spec.params["ai_fun_facts"] = list(direction.fun_facts)
+        if direction.visual_beats:
+            spec.params["ai_visual_beats"] = list(direction.visual_beats)
+            spec.params["ai_segment_plan"] = list(direction.visual_beats)
+        if direction.metrics:
+            spec.params["ai_metrics"] = list(direction.metrics)
         spec.params.pop("lesson_theme", None)
         spec.params.pop("focus_letters", None)
         spec.params.pop("focus_words", None)
-        spec.params.pop("ai_voice_lines", None)
-        spec.params.pop("complete_alphabet", None)
-        spec.params.pop("ai_visual_beats", None)
-        spec.params.pop("ai_segment_plan", None)
-        spec.params.pop("ai_title", None)
     else:
         spec.params.pop("lesson_theme", None)
         spec.params.pop("focus_letters", None)
         spec.params.pop("focus_words", None)
         spec.params.pop("ai_voice_lines", None)
         spec.params.pop("ai_fun_facts", None)
-        spec.params.pop("complete_alphabet", None)
         spec.params.pop("ai_visual_beats", None)
         spec.params.pop("ai_segment_plan", None)
         spec.params.pop("ai_title", None)
@@ -313,49 +315,7 @@ def apply_creative_direction(spec: Any, direction: CreativeDirection | None) -> 
     spec.params["ai_summary"] = format_direction_summary(direction)
     spec.engine = locked_engine
     spec.style = locked_style
-    _sanitize_alphabet_direction(spec)
-    spec.engine = locked_engine
-    spec.style = locked_style
     return spec
-
-
-def _sanitize_alphabet_direction(spec: Any) -> None:
-    """Stop SPELL videos from using first-letter salad like SABP."""
-    if getattr(spec, "engine", "") != "alphabet_cartoon":
-        spec.params.pop("complete_alphabet", None)
-        return
-    if spec.params.get("complete_alphabet"):
-        spec.params["lesson_theme"] = "abc_complete"
-        spec.params["mode"] = "lesson"
-        spec.params["include_numbers"] = False
-        spec.params.pop("focus_letters", None)
-        spec.params.pop("ai_segment_plan", None)
-        spec.params.pop("ai_visual_beats", None)
-        spec.params.pop("segment_weights", None)
-        return
-    from app.art.education_content import _is_letter_salad, choose_spell_word
-
-    mode = str(spec.params.get("mode") or "").lower()
-    theme = str(spec.params.get("lesson_theme") or "")
-    if mode != "spell" and theme != "word_builder":
-        return
-    words = [str(w) for w in (spec.params.get("focus_words") or []) if str(w).strip()]
-    letters = [str(c) for c in (spec.params.get("focus_letters") or []) if str(c).strip()]
-    joined = "".join(letters)
-    salad = _is_letter_salad(joined, words)
-    if not salad and len(words) >= 2:
-        salad = True
-    if not salad:
-        return
-    spec.params.pop("focus_letters", None)
-    beats = spec.params.get("ai_visual_beats") or spec.params.get("ai_segment_plan") or []
-    rng = np.random.default_rng(int(getattr(spec, "seed", 1)) + 19)
-    real = choose_spell_word(
-        rng,
-        focus_words=words,
-        segment_plan=list(beats) if isinstance(beats, list) else [],
-    )
-    spec.params["focus_words"] = [real]
 
 
 def maybe_enrich_spec(

@@ -39,23 +39,14 @@ database:
   path: "./data/history.db"
 
 engines:
-  - particles
-  - galaxy
-  - waves
-  - tunnel
-  - alphabet_cartoon
-  - hand_art
-  - kids_doodles
-  - infographic_explainer
+  - kids_storybook
+  - how_it_works
+  - trend_brief
 
 styles:
-  - abstract
-  - cosmic
-  - minimal
-  - organic
-  - digital
-  - playful
-  - documentary
+  - storybook
+  - classroom
+  - pulse
 
 # Primary export targets: Full HD + 4K (and common variants)
 resolutions:
