@@ -60,6 +60,7 @@ data/ai_cache/
 data/ai_catalogs/
 data/ai_scenes/
 data/ai_voice/
+data/trend_cache/
 *.db
 
 # YouTube OAuth tokens, quota, and downloaded Desktop-app JSON stay local.

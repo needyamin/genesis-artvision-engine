@@ -35,8 +35,10 @@ def ensure_directories(config: dict[str, Any] | None = None) -> dict[str, Path]:
     ai_cfg = cfg.get("ai") or {}
     paths["ai_cache"] = resolve_path(ai_cfg.get("cache_dir") or "./data/ai_cache", root)
     paths["ai_catalogs"] = resolve_path(ai_cfg.get("catalog_dir") or "./data/ai_catalogs", root)
+    tf_cfg = cfg.get("trend_feed") or {}
+    paths["trend_cache"] = resolve_path(tf_cfg.get("cache_dir") or "./data/trend_cache", root)
     paths["youtube"] = root / "data" / "youtube"
-    for key in ("output", "temp", "logs", "data", "ai_cache", "ai_catalogs", "youtube"):
+    for key in ("output", "temp", "logs", "data", "ai_cache", "ai_catalogs", "trend_cache", "youtube"):
         paths[key].mkdir(parents=True, exist_ok=True)
     return paths
 

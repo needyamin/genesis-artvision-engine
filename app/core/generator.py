@@ -220,9 +220,13 @@ class VideoFactory:
 
                 spec = enrich_from_user_prompt(spec, self.config, on_progress=on_progress)
             else:
-                from app.ai.advisor import maybe_enrich_spec
+                from app.art.trend_feed import attach_live_trend
 
-                spec = maybe_enrich_spec(spec, self.config, on_progress=on_progress)
+                live_attached = attach_live_trend(spec, self.config, on_progress=on_progress)
+                if not live_attached:
+                    from app.ai.advisor import maybe_enrich_spec
+
+                    spec = maybe_enrich_spec(spec, self.config, on_progress=on_progress)
 
             if control and control.stopped:
                 raise InterruptedError("Render cancelled by user")

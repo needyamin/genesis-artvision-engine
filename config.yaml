@@ -129,6 +129,18 @@ resolutions:
 
 fps_options: [24, 30, 60]
 
+# Trending Brief: public RSS headlines (no article scraping). Offline catalog if the web is down.
+trend_feed:
+  enabled: true
+  cache_dir: "./data/trend_cache"
+  cache_minutes: 45
+  timeout_sec: 12
+  rss_urls:
+    - https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en
+    - https://trends.google.com/trending/rss?geo=US
+    - https://feeds.bbci.co.uk/news/rss.xml
+    - https://feeds.npr.org/1001/rss.xml
+
 # Optional OpenRouter creative advisor (suggestions only — render stays offline).
 # Put OPENROUTER_API_KEY in root `.env` (gitignored). Prefer --curate over per_video.
 ai:

@@ -6,7 +6,7 @@ By
 
 Offline procedural video factory. Press **GENERATE VIDEO** and the app invents a seed, engine, style, palette, background, layout, motion, voice, and soundtrack, then encodes an MP4 locally with FFmpeg.
 
-No stock footage, prompt, or music library is required. Optional OpenRouter advice can suggest creative direction only. Frames, pictures, voice, and audio stay on this machine.
+No stock footage, prompt, or music library is required. Trending Brief reads public news RSS when the machine is online. Optional OpenRouter advice can polish that brief or suggest creative direction. Frames, pictures, voice, and audio stay on this machine.
 
 ## What it makes
 
@@ -16,7 +16,7 @@ Three engines. The engine owns the concept. The style owns grade, chrome, and mo
 |--------|-------|----------------|
 | `kids_storybook` — Kids Storybook | `storybook` | Picture-book pages, a drawn noun, and a slow kids voice |
 | `how_it_works` — How It Works | `classroom` | Classroom diagrams plus a calm narrator |
-| `trend_brief` — Trending Brief | `pulse` | Kinetic type, ticker, and documentary voice over a pulse bed |
+| `trend_brief` — Trending Brief | `pulse` | A current RSS headline, a short spoken brief, kinetic ticker |
 
 Leave Engine and Style on Random and they pair together. Each seed still varies the backdrop and layout (desk, window, chalkboard, aurora, radar, mirrored cards, and so on).
 
@@ -77,6 +77,14 @@ python main.py --generate --edit-preset master --captions both --edit-intensity 
 python main.py --generate --youtube --engine how_it_works
 python main.py --generate --no-audio --test
 ```
+
+## Live Trending Brief
+
+When you pick **Trending Brief** and the machine is online, the factory reads public RSS feeds (Google News, Google Trends, BBC, NPR), picks one current headline, and turns it into a four-beat brief: HOOK, WHY, CATCH, NEXT. It uses titles and descriptions from the feed only — it does not scrape article pages.
+
+If `OPENROUTER_API_KEY` is set, OpenRouter only rewrites those facts into easy spoken lines. Without a key, a local extractive brief is used. If the web is down, the evergreen catalog is used. Set `trend_feed.enabled: false` in `config.yaml` to skip live news.
+
+A new generate with the same seed on another day can pick a different story because the news moved on. History reprint uses the stored brief and does not refetch.
 
 ## Seeds and replay
 

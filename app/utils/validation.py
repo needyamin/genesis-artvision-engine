@@ -100,6 +100,18 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "client_secret": "./data/youtube/client_secret.json",
         "token": "./data/youtube/token.json",
     },
+    "trend_feed": {
+        "enabled": True,
+        "cache_dir": "./data/trend_cache",
+        "cache_minutes": 45,
+        "timeout_sec": 12,
+        "rss_urls": [
+            "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en",
+            "https://trends.google.com/trending/rss?geo=US",
+            "https://feeds.bbci.co.uk/news/rss.xml",
+            "https://feeds.npr.org/1001/rss.xml",
+        ],
+    },
 }
 
 
@@ -159,6 +171,7 @@ def validate_config(config: dict[str, Any]) -> None:
         if mode not in {"off", "sidecar", "burn", "both"}:
             raise ValueError(f"editing.presets.{name}.caption_mode is invalid: {mode}")
     _validate_visual_variation(config.get("visual_variation", {}))
+    _validate_trend_feed(config.get("trend_feed", {}))
 
 
 def _validate_visual_variation(config: Any) -> None:
@@ -216,3 +229,23 @@ def _validate_visual_variation(config: Any) -> None:
                     f"visual_variation.{section_name}.{engine} must enable "
                     "at least one variant"
                 )
+
+
+def _validate_trend_feed(config: Any) -> None:
+    if not isinstance(config, dict):
+        raise ValueError("trend_feed must be a mapping")
+    enabled = config.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise ValueError("trend_feed.enabled must be true or false")
+    minutes = config.get("cache_minutes", 45)
+    if isinstance(minutes, bool) or not isinstance(minutes, (int, float)) or float(minutes) < 1:
+        raise ValueError("trend_feed.cache_minutes must be a number of at least 1")
+    timeout = config.get("timeout_sec", 12)
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or float(timeout) <= 0:
+        raise ValueError("trend_feed.timeout_sec must be a positive number")
+    urls = config.get("rss_urls") or []
+    if not isinstance(urls, list) or not urls:
+        raise ValueError("trend_feed.rss_urls must be a non-empty list")
+    for url in urls:
+        if not str(url).strip():
+            raise ValueError("trend_feed.rss_urls entries must be non-empty")

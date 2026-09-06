@@ -1,7 +1,8 @@
-"""Offline trending-brief catalog — evergreen viral-curiosity topics.
+"""Trending-brief topics: live RSS first, then AI overlay, then this catalog.
 
-When the AI advisor is on, OpenRouter can replace these with a currently
-trending internet topic. Frames still render offline from the JSON.
+When Trending Brief is selected, the generator tries public news RSS and
+summarizes one current headline. This catalog is the offline fallback.
+Frames still render offline from the stored topic JSON.
 """
 
 from __future__ import annotations
